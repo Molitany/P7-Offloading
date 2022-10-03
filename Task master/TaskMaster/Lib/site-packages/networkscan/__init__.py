@@ -1,0 +1,5 @@
+from networkscan.networkscan import *
+
+__author__ = 'Eric ORAIN'
+__version__ = "1.0.0"
+
