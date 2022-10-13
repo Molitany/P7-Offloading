@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
 <nta>
-	<declaration>// Place global declarations here.</declaration>
+	<declaration>// Place global declarations here.
+
+typedef int[0,2]id_b;
+const int computationPower[3]= {3,7,1};
+const int powerConsumption[3] = {2,5,1};
+</declaration>
 	<template>
 		<name x="5" y="5">Distributor</name>
 		<declaration>// Place local declarations here.</declaration>
@@ -10,27 +15,24 @@
 		<init ref="id0"/>
 	</template>
 	<template>
-		<name>machine</name>
-		<location id="id1" x="0" y="-110">
+		<name>TaskGenerator</name>
+		<location id="id1" x="0" y="0">
 		</location>
+		<init ref="id1"/>
+	</template>
+	<template>
+		<name>Machine</name>
+		<parameter>const id_b id</parameter>
+		<declaration>int localComputationPower=  computationPower[id];
+int localPowerConsumption =  powerConsumption[id];</declaration>
 		<location id="id2" x="0" y="0">
 		</location>
 		<init ref="id2"/>
-		<transition>
-			<source ref="id2"/>
-			<target ref="id1"/>
-		</transition>
-	</template>
-	<template>
-		<name>taskGen</name>
-		<location id="id3" x="0" y="0">
-		</location>
-		<init ref="id3"/>
 	</template>
 	<system>// Place template instantiations here.
-Process = Template();
+
 // List one or more processes to be composed into a system.
-system Process;
+system Distributor, Machine;
     </system>
 	<queries>
 		<query>
