@@ -2,10 +2,18 @@
 <!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
 <nta>
 	<declaration>// Place global declarations here.
-
+const int QSIZE = 20;
 typedef int[0,2]id_b;
 const int computationPower[3]= {3,7,1};
 const int powerConsumption[3] = {2,5,1};
+typedef struct{
+    int deadLine;
+    int processiongUnits;
+
+}task;
+
+task taskList[QSIZE];
+
 </declaration>
 	<template>
 		<name x="5" y="5">Distributor</name>
@@ -16,23 +24,50 @@ const int powerConsumption[3] = {2,5,1};
 	</template>
 	<template>
 		<name>TaskGenerator</name>
+		<declaration>clock time;
+const int taskToCreate = 10;
+int i;
+int index= 0;
+void createTask(DL,PU){
+    deadLine[index]=;
+    processiongUnits[index]=;
+    index++;
+}</declaration>
 		<location id="id1" x="0" y="0">
+			<label kind="invariant" x="-59" y="0">time&lt;5</label>
+		</location>
+		<location id="id2" x="0" y="136">
 		</location>
 		<init ref="id1"/>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="guard" x="8" y="51">taskToCreate &lt;= i</label>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="51" y="-59">taskToCreate &gt;i</label>
+			<label kind="assignment" x="51" y="-42">createTask(),
+time = 0,
+i++</label>
+			<nail x="68" y="-68"/>
+			<nail x="-59" y="-68"/>
+		</transition>
 	</template>
 	<template>
 		<name>Machine</name>
 		<parameter>const id_b id</parameter>
 		<declaration>int localComputationPower=  computationPower[id];
 int localPowerConsumption =  powerConsumption[id];</declaration>
-		<location id="id2" x="0" y="0">
+		<location id="id3" x="0" y="0">
 		</location>
-		<init ref="id2"/>
+		<init ref="id3"/>
 	</template>
 	<system>// Place template instantiations here.
 
 // List one or more processes to be composed into a system.
-system Distributor, Machine;
+system Distributor, Machine, TaskGenerator;
     </system>
 	<queries>
 		<query>
