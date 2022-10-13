@@ -6,13 +6,18 @@ const int QSIZE = 20;
 typedef int[0,2]id_b;
 const int computationPower[3]= {3,7,1};
 const int powerConsumption[3] = {2,5,1};
+
 typedef struct{
     int deadLine;
-    int processiongUnits;
-
+    int processingUnits;
 }task;
 
 task taskList[QSIZE];
+
+
+
+
+
 
 </declaration>
 	<template>
@@ -28,9 +33,9 @@ task taskList[QSIZE];
 const int taskToCreate = 10;
 int i;
 int index= 0;
-void createTask(DL,PU){
-    deadLine[index]=;
-    processiongUnits[index]=;
+void createTask(int DL, int PU){
+    taskList[index].deadLine=DL;
+    taskList[index].processingUnits=PU;
     index++;
 }</declaration>
 		<location id="id1" x="0" y="0">
@@ -47,8 +52,10 @@ void createTask(DL,PU){
 		<transition>
 			<source ref="id1"/>
 			<target ref="id1"/>
+			<label kind="select" x="59" y="-119">DL : int [10,20],
+PU: int [10,20]</label>
 			<label kind="guard" x="51" y="-59">taskToCreate &gt;i</label>
-			<label kind="assignment" x="51" y="-42">createTask(),
+			<label kind="assignment" x="51" y="-42">createTask(PU,PU),
 time = 0,
 i++</label>
 			<nail x="68" y="-68"/>
