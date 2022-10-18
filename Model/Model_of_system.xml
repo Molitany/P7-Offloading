@@ -5,13 +5,14 @@
 const int QSIZE = 20;
 const int MACHINES = 3;
 typedef int[0,MACHINES-1] id_b;
-const int computationPower[3]= {3,7,1};
-const int powerConsumption[3] = {2,5,1};
+const int computationPower[3]= {330, 220, 110};
+const int powerConsumption[3] = {110, 65, 30};
+const int idleConsumption[3] = {80, 40, 20};
 int numberOfTaskInQueue = 0;
 bool machineBusy[MACHINES];
 int assignedTask[MACHINES];
 
-broadcast chan newTaskDelecated, taskFinished;
+broadcast chan newTaskForAuction, taskFinished, newTaskBought;
 typedef struct{
     int deadLine;
     int processingUnits;
@@ -77,7 +78,7 @@ bool allMachineBusy(){
     }
     return true;
 }
-void delecateTask(){
+void auctionTask(){
     selected = false;
     for (i = 0; i&lt;MACHINES &amp;&amp; !selected;++i) {
         if(!machineBusy[i]){
@@ -102,9 +103,8 @@ void delecateTask(){
 		<location id="id4" x="-187" y="-195">
 			<name x="-204" y="-229">waiting</name>
 		</location>
-		<location id="id5" x="8" y="-204">
-			<name x="-34" y="-272">delegating</name>
-			<committed/>
+		<location id="id5" x="0" y="-204">
+			<name x="-34" y="-246">auctioning</name>
 		</location>
 		<init ref="id2"/>
 		<transition>
@@ -118,14 +118,16 @@ void delecateTask(){
 		<transition>
 			<source ref="id5"/>
 			<target ref="id3"/>
-			<label kind="synchronisation" x="-51" y="-255">newTaskDelecated!</label>
+			<label kind="synchronisation" x="-119" y="-229">newTaskBought?</label>
 			<nail x="-42" y="-204"/>
+			<nail x="-17" y="-144"/>
 		</transition>
 		<transition>
 			<source ref="id3"/>
 			<target ref="id5"/>
 			<label kind="guard" x="17" y="-178">!systemBusy &amp;&amp; numberOfTaskInQueue &gt; 0</label>
-			<label kind="assignment" x="17" y="-161">delecateTask()</label>
+			<label kind="synchronisation" x="17" y="-144">newTaskForAuction!</label>
+			<label kind="assignment" x="17" y="-161">auctionTask()</label>
 		</transition>
 		<transition>
 			<source ref="id4"/>
@@ -150,6 +152,7 @@ void delecateTask(){
 		<parameter>const id_b id</parameter>
 		<declaration>int localComputationPower=  computationPower[id];
 int localPowerConsumption =  powerConsumption[id];
+int LocalIdlePowerConsumption = idleConsumption[id];
 clock t;
 int computationDone;
 bool taskDone;
@@ -160,49 +163,64 @@ void processing(){
         taskDone= true;
     }
 }</declaration>
-		<location id="id6" x="2" y="26">
-			<name x="34" y="8">idle</name>
-		</location>
-		<location id="id7" x="0" y="-119">
-			<name x="17" y="-153">working</name>
-			<label kind="invariant" x="25" y="-127">t&lt;=5</label>
-		</location>
-		<location id="id8" x="-119" y="-119">
+		<location id="id6" x="91" y="33">
+			<name x="108" y="25">buying</name>
 			<committed/>
 		</location>
-		<init ref="id6"/>
+		<location id="id7" x="-119" y="34">
+			<name x="-153" y="8">idle</name>
+		</location>
+		<location id="id8" x="0" y="-119">
+			<name x="17" y="-153">working</name>
+			<label kind="invariant" x="17" y="-136">t&lt;=5</label>
+		</location>
+		<location id="id9" x="-119" y="-119">
+			<committed/>
+		</location>
+		<init ref="id7"/>
 		<transition>
-			<source ref="id8"/>
+			<source ref="id6"/>
 			<target ref="id7"/>
-			<label kind="guard" x="-102" y="-153">!taskDone</label>
+			<label kind="assignment" x="-68" y="153">bidOnTask()</label>
+			<nail x="91" y="152"/>
+			<nail x="-121" y="152"/>
 		</transition>
 		<transition>
-			<source ref="id8"/>
-			<target ref="id6"/>
-			<label kind="guard" x="-153" y="-42">taskDone</label>
-			<label kind="synchronisation" x="-153" y="-59">taskFinished!</label>
-			<label kind="assignment" x="-187" y="-25">machineBusy[id] = false,
-taskDone = false</label>
+			<source ref="id6"/>
+			<target ref="id8"/>
+			<label kind="guard" x="25" y="-102">machineBusy[id]</label>
 		</transition>
 		<transition>
 			<source ref="id7"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="-79" y="33">newTaskForAuction?</label>
+			<label kind="assignment" x="-79" y="50">computationDone = 0,
+taskDone = false,
+t=0</label>
+		</transition>
+		<transition>
+			<source ref="id9"/>
 			<target ref="id8"/>
-			<label kind="guard" x="-42" y="-280">t&gt;=5</label>
+			<label kind="guard" x="-93" y="-136">!taskDone</label>
+		</transition>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-187" y="-68">taskDone</label>
+			<label kind="synchronisation" x="-212" y="-85">taskFinished!</label>
+			<label kind="assignment" x="-280" y="-51">machineBusy[id] = false,
+taskDone = false</label>
+		</transition>
+		<transition>
+			<source ref="id8"/>
+			<target ref="id9"/>
+			<label kind="guard" x="-51" y="-280">t&gt;=5</label>
 			<label kind="assignment" x="-51" y="-263">processing(),
 t=0</label>
 			<nail x="0" y="-221"/>
 			<nail x="-119" y="-221"/>
 			<nail x="-119" y="-144"/>
 			<nail x="-119" y="-144"/>
-		</transition>
-		<transition>
-			<source ref="id6"/>
-			<target ref="id7"/>
-			<label kind="guard" x="0" y="-93">machineBusy[id]</label>
-			<label kind="synchronisation" x="0" y="-76">newTaskDelecated?</label>
-			<label kind="assignment" x="0" y="-59">computationDone = 0,
-taskDone = false,
-t=0</label>
 		</transition>
 	</template>
 	<system>// Place template instantiations here.
