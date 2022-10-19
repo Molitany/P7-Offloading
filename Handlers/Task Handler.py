@@ -1,17 +1,25 @@
+import os
 import socket
 import asyncio
-import websockets 
+import websockets
+
 
 async def handler(websocket):
-    async for task in websocket:
-        print(task)
+    try:
+        async for task in websocket:
+            print(task)
+    except websockets.ConnectionClosed:
+        print('connection terminated')
+
 
 async def reverse_proxy():
-    host = socket.gethostbyname(socket.gethostname())
+    host = os.popen(
+        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
     port = 5001
     async with websockets.serve(handler, host, port):
         print(f"Server started on {host}:{port}")
         await asyncio.Future()
+
 
 if __name__ == "__main__":
     asyncio.run(reverse_proxy())

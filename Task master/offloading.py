@@ -1,46 +1,85 @@
-from concurrent.futures import ThreadPoolExecutor
-from networkscan import Networkscan
+import concurrent
+from multiprocessing import Process
+
 from flask import Flask, request
 from threading import Thread
 import asyncio
 import websockets
-import socket
+import os
+
+from scapy.layers.inet import IP, TCP
+from scapy.layers.l2 import Ether, ARP, srp
+from scapy.sendrecv import sr
 
 app = Flask(__name__)
-# possible ips ['169.254.10.165', '169.254.34.210', '169.254.48.187', '169.254.71.202']
-machine_IPs = {
-    "previous": ['169.254.34.210'],
-    "current": []
+machine_ips = {
+    "alive": [],
+    "potential": []
 }
+servers_open = {}
 task_queue = []
 
-def get_machineIPs():
-    local_ip = socket.gethostbyname(socket.gethostname())
-    local_network = "169.254.0.0/16"
-    while True:
-        scan = Networkscan(local_network)   
-        scan.run()
-        for ips in scan.list_of_hosts_found:
-            machine_IPs["previous"] = machine_IPs.get("current")
-            if ips != local_ip and ips not in machine_IPs:
-                machine_IPs["current"].append(ips)
-    
+
+async def get_machine_ips():
+    local_network = "192.168.1.0/24"
+    temp_dict = {
+        "alive": [],
+        "potential": []
+    }
+    ans, unans = srp(Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=local_network), timeout=2, iface="eno1")
+    if len(ans) != 0:
+        for ip in ans:
+            temp_dict['potential'].append(ip.answer.psrc)
+        temp_dict['alive'] = machine_ips.get('alive')
+        machine_ips.update(temp_dict)
+
+
 async def establish_connection(ip):
+    host = os.popen(
+        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
     port = 5001
     async with websockets.connect(f"ws://{ip}:{port}") as websocket:
-        await websocket.send(socket.gethostbyname(socket.gethostname()).encode())
+        await websocket.send(host.encode())
+        await asyncio.Future()
+
 
 @app.route("/", methods=["POST"])
-def recieve_task():
-    task_queue.append(request.json)
+def receive_task():
+    print(request.json)
     return 'ok'
 
-if __name__ == "__main__":
-    Thread(target=get_machineIPs).start()
-    Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
-    for ip in machine_IPs.get("previous"):
-        asyncio.run(establish_connection(ip))
+
+def find_alive_ips():
+    port = 5001
     while True:
-            for ip in list(set(machine_IPs.get("current")) - set(machine_IPs.get("previous"))):
-                print(f"new ip found: {ip}")
-                asyncio.run(establish_connection(ip))
+        asyncio.run(get_machine_ips())
+        if len(machine_ips.get("potential")) != 0:
+            for ip in machine_ips.get("potential"):
+                print(f"new ip found: {ip}, checking if server is up")
+                ans, unans = sr(IP(dst=ip) / TCP(dport=port, flags="S"))
+                if 'R' not in str(ans[0].answer.payload.fields.get('flags')):
+                    print(f'server is alive on {ip}\n')
+                    if ip not in machine_ips.get('alive'):
+                        machine_ips['alive'].append(ip)
+                else:
+                    print(f'server is dead on {ip}\n')
+                    if ip in machine_ips.get('alive'):
+                        machine_ips['alive'].remove(ip)
+                        server = servers_open.pop(ip, None)
+                        if server is not None:
+                            server.terminate()
+
+
+def main():
+    Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
+    Thread(target=find_alive_ips).start()
+    while True:
+        for ip in machine_ips.get('alive'):
+            if ip not in servers_open:
+                process = Process(target=asyncio.run, args=(establish_connection(ip),))
+                process.start()
+                servers_open.update({ip: process})
+
+
+if __name__ == "__main__":
+    main()
