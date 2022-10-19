@@ -14,7 +14,7 @@ async def handler(websocket):
 
 async def reverse_proxy():
     host = os.popen(
-        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
+        'ip addr show eth0 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
     port = 5001
     async with websockets.serve(handler, host, port):
         print(f"Server started on {host}:{port}")
