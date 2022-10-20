@@ -56,18 +56,19 @@ def find_alive_ips():
         if len(machine_ips.get("potential")) != 0:
             for ip in machine_ips.get("potential"):
                 print(f"new ip found: {ip}, checking if server is up")
-                ans, unans = sr(IP(dst=ip) / TCP(dport=port, flags="S"))
-                if 'R' not in str(ans[0].answer.payload.fields.get('flags')):
-                    print(f'server is alive on {ip}\n')
-                    if ip not in machine_ips.get('alive'):
-                        machine_ips['alive'].append(ip)
-                else:
-                    print(f'server is dead on {ip}\n')
-                    if ip in machine_ips.get('alive'):
-                        machine_ips['alive'].remove(ip)
-                        server = servers_open.pop(ip, None)
-                        if server is not None:
-                            server.terminate()
+                ans, unans = sr(IP(dst=ip) / TCP(dport=port, flags="S"), inter=0.5, retry=-2, timeout=1)
+                if len(ans) != 0:
+                    if 'R' not in str(ans[0].answer.payload.fields.get('flags')):
+                        print(f'server is alive on {ip}\n')
+                        if ip not in machine_ips.get('alive'):
+                            machine_ips['alive'].append(ip)
+                    else:
+                        print(f'server is dead on {ip}\n')
+                        if ip in machine_ips.get('alive'):
+                            machine_ips['alive'].remove(ip)
+                            server = servers_open.pop(ip, None)
+                            if server is not None:
+                                server.terminate()
 
 
 def main():
