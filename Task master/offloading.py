@@ -34,21 +34,6 @@ async def get_machine_ips():
         machine_ips.update(temp_dict)
 
 
-async def establish_connection(ip):
-    host = os.popen(
-        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
-    port = 5001
-    async with websockets.connect(f"ws://{ip}:{port}") as websocket:
-        await websocket.send(host.encode())
-        await asyncio.Future()
-
-
-@app.route("/", methods=["POST"])
-def receive_task():
-    print(request.json)
-    return 'ok'
-
-
 def find_alive_ips():
     port = 5001
     while True:
@@ -71,16 +56,29 @@ def find_alive_ips():
                                 server.terminate()
 
 
-def main():
-    Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
-    Thread(target=find_alive_ips).start()
-    while True:
-        for ip in machine_ips.get('alive'):
-            if ip not in servers_open:
-                process = Process(target=asyncio.run, args=(establish_connection(ip),))
-                process.start()
-                servers_open.update({ip: process})
+async def handler(websocket):
+    try:
+        async for task in websocket:
+            websocket.send(task)
+    except websockets.ConnectionClosed:
+        print('connection terminated')
+
+
+async def establish_server():
+    host = os.popen(
+        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
+    port = 5001
+    async with websockets.serve(handler, host, port) as websocket:
+        await asyncio.Future()
+
+
+@app.route("/", methods=["POST"])
+def receive_task():
+    print(request.json)
+    return 'ok'
 
 
 if __name__ == "__main__":
-    main()
+    Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
+    # Thread(target=find_alive_ips).start()
+    asyncio.run(establish_server())
