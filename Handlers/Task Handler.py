@@ -1,19 +1,25 @@
 import os
 import asyncio
 import websockets
+import numpy as np
+
+
+def calc_split_matrix(vector_pairs):
+    dot_products = []
+    for pair in vector_pairs:
+        dot_products.append({'dot_product': np.dot(pair['vector'][0], pair['vector'][1]),
+                             'cell': pair['cell']})
+    return dot_products
 
 
 async def establish_client():
     host = '192.168.1.10'
     port = 5001
     async with websockets.connect(f"ws://{host}:{port}") as websocket:
-        await websocket.send(os.popen(
-            'ip addr show eth0 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'')
-                             .read()
-                             .strip()
-                             .encode())
-        print(await websocket.recv())
-        await asyncio.Future()
+        while True:
+            task = await websocket.recv()
+            result = calc_split_matrix(task)
+            await websocket.send(result)
 
 
 if __name__ == "__main__":
