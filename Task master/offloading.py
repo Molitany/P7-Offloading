@@ -3,9 +3,8 @@ from flask import Flask, request
 from threading import Thread
 import asyncio
 import websockets
-import os
 import numpy as np
-
+import json
 # from scapy.layers.inet import IP, TCP
 # from scapy.layers.l2 import Ether, ARP, srp
 # from scapy.sendrecv import sr
@@ -92,20 +91,20 @@ async def new_connection(websocket):
 
 async def handle_server():
     while True:
-        if len(task_queue) != 0:
+        await asyncio.sleep(1)
+        if len(task_queue) != 0 and len(clients) != 0:
             task = task_queue.popleft()
             vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
             client = clients.popleft()
             clients.append(client)
-            await client.send(vector_pairs)
+            await client.send(json.dumps(vector_pairs))
             result = await client.recv()
             dot_product_array = fill_array(result, array_to_be_filled)
             print(dot_product_array)
 
 
 async def establish_server():
-    host = os.popen(
-        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
+    host = '192.168.1.10'
     port = 5001
     async with websockets.serve(new_connection, host, port) as websocket:
         await handle_server()
