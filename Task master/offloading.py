@@ -99,6 +99,7 @@ async def handle_server():
             clients.append(client)
             await client.send(json.dumps(vector_pairs))
             result = await client.recv()
+            result = json.loads(result)
             dot_product_array = fill_array(result, array_to_be_filled)
             print(dot_product_array)
 
