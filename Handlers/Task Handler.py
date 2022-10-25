@@ -1,5 +1,5 @@
 import asyncio
-import json
+import json_numpy
 
 import websockets
 import numpy as np
@@ -18,9 +18,9 @@ async def establish_client():
     port = 5001
     async with websockets.connect(f"ws://{host}:{port}") as websocket:
         while True:
-            task = json.loads(await websocket.recv())
+            task = json_numpy.loads(await websocket.recv())
             result = calc_split_matrix(task)
-            await websocket.send(json.dumps(result))
+            await websocket.send(json_numpy.dumps(result))
 
 
 if __name__ == "__main__":

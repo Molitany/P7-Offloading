@@ -4,7 +4,7 @@ from threading import Thread
 import asyncio
 import websockets
 import numpy as np
-import json
+import json_numpy
 # from scapy.layers.inet import IP, TCP
 # from scapy.layers.l2 import Ether, ARP, srp
 # from scapy.sendrecv import sr
@@ -97,9 +97,9 @@ async def handle_server():
             vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
             client = clients.popleft()
             clients.append(client)
-            await client.send(json.dumps(vector_pairs))
+            await client.send(json_numpy.dumps(vector_pairs))
             result = await client.recv()
-            result = json.loads(result)
+            result = json_numpy.loads(result)
             dot_product_array = fill_array(result, array_to_be_filled)
             print(dot_product_array)
 
