@@ -1,10 +1,13 @@
 from collections import deque
+
+import numpy
 from flask import Flask, request
 from threading import Thread
 import asyncio
 import websockets
 import numpy as np
 import json_numpy
+
 # from scapy.layers.inet import IP, TCP
 # from scapy.layers.l2 import Ether, ARP, srp
 # from scapy.sendrecv import sr
@@ -82,11 +85,30 @@ def fill_array(dot_products, array_to_be_filled):
 
 
 async def new_connection(websocket):
-    clients.append(websocket)
+    clients.append({'ws': websocket, 'available': True})
     try:
         await websocket.wait_closed()
     finally:
-        clients.remove(websocket)
+        for client in clients:
+            if client.get('ws') == websocket:
+                clients.remove(client)
+
+
+async def client_available(client):
+    while not client.get('available'):
+        await asyncio.sleep(1)
+
+
+async def handle_communication(pair):
+    client = clients.popleft()
+    clients.append(client)
+    await client_available(client)
+    client['available'] = False
+    ws = client.get('ws')
+    await ws.send(json_numpy.dumps(pair))
+    result = await ws.recv()
+    client['available'] = True
+    return result
 
 
 async def handle_server():
@@ -95,13 +117,11 @@ async def handle_server():
         if len(task_queue) != 0 and len(clients) != 0:
             task = task_queue.popleft()
             vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
-            client = clients.popleft()
-            clients.append(client)
-            await client.send(json_numpy.dumps(vector_pairs))
-            result = await client.recv()
-            result = json_numpy.loads(result)
+            result = []
+            for f in asyncio.as_completed([handle_communication(pair) for pair in vector_pairs]):
+                result.append(json_numpy.loads(await f))
             dot_product_array = fill_array(result, array_to_be_filled)
-            print(dot_product_array)
+            print(f'we got: {dot_product_array}\n should be: {numpy.matmul(task[0], task[1])}')
 
 
 async def establish_server():
