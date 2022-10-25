@@ -7,8 +7,8 @@ import numpy as np
 
 def calc_split_matrix(pair):
     print(pair)
-    dot_products = {"dot_product": np.dot(pair["vector"][0], pair["vector"][1]),
-                    "cell": pair["cell"]}
+    dot_products = [{"dot_product": np.dot(pair["vector"][0], pair["vector"][1]),
+                     "cell": pair["cell"]}]
     return dot_products
 
 
