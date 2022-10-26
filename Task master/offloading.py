@@ -1,5 +1,4 @@
 from collections import deque
-
 import numpy
 from flask import Flask, request
 from threading import Thread
@@ -8,15 +7,7 @@ import websockets
 import numpy as np
 import json_numpy
 
-# from scapy.layers.inet import IP, TCP
-# from scapy.layers.l2 import Ether, ARP, srp
-# from scapy.sendrecv import sr
-
 app = Flask(__name__)
-# machine_ips = {
-#     "alive": [],
-#     "potential": []
-# }
 clients = deque()
 
 matrix1 = np.array([[1, 2, 3],
@@ -29,41 +20,6 @@ matrix2 = np.array([[1, 2, 3, 10],
                     [7, 8, 9, 10]])
 task_queue = deque([(matrix1, matrix2)])
 
-
-# async def get_machine_ips():
-#     local_network = "192.168.1.0/24"
-#     temp_dict = {
-#         "alive": [],
-#         "potential": []
-#     }
-#     ans, unans = srp(Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=local_network), timeout=2, iface="eno1")
-#     if len(ans) != 0:
-#         for ip in ans:
-#             temp_dict['potential'].append(ip.answer.psrc)
-#         temp_dict['alive'] = machine_ips.get('alive')
-#         machine_ips.update(temp_dict)
-#
-#
-# def find_alive_ips():
-#     port = 5001
-#     while True:
-#         asyncio.run(get_machine_ips())
-#         if len(machine_ips.get("potential")) != 0:
-#             for ip in machine_ips.get("potential"):
-#                 print(f"new ip found: {ip}, checking if server is up")
-#                 ans, unans = sr(IP(dst=ip) / TCP(dport=port, flags="S"), inter=0.5, retry=-2, timeout=1)
-#                 if len(ans) != 0:
-#                     if 'R' not in str(ans[0].answer.payload.fields.get('flags')):
-#                         print(f'server is alive on {ip}\n')
-#                         if ip not in machine_ips.get('alive'):
-#                             machine_ips['alive'].append(ip)
-#                     else:
-#                         print(f'server is dead on {ip}\n')
-#                         if ip in machine_ips.get('alive'):
-#                             machine_ips['alive'].remove(ip)
-#                             server = servers_open.pop(ip, None)
-#                             if server is not None:
-#                                 server.terminate()
 
 def split_matrix(a, b):
     array_to_be_filled = np.zeros((np.shape(a)[0], np.shape(b)[1]))

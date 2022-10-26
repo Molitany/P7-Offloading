@@ -1,8 +1,9 @@
 import asyncio
 import json_numpy
 
-import websockets
+from websockets import connect
 import numpy as np
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
 
 def calc_split_matrix(pair):
@@ -15,12 +16,18 @@ def calc_split_matrix(pair):
 async def establish_client():
     host = '192.168.1.10'
     port = 5001
-    async with websockets.connect(f"ws://{host}:{port}") as websocket:
-        while True:
-            task = json_numpy.loads(await websocket.recv())
-            result = calc_split_matrix(task)
-            await websocket.send(json_numpy.dumps(result))
-
+    while True:
+        try:
+            async with connect(f"ws://{host}:{port}") as websocket:
+                while True:
+                    task = json_numpy.loads(await websocket.recv())
+                    result = calc_split_matrix(task)
+                    await websocket.send(json_numpy.dumps(result))
+        except ConnectionRefusedError:
+            print('no connection to server')
+            await asyncio.sleep(1)
+        except (ConnectionClosedError, ConnectionClosedOK):
+            print('Connection closed')
 
 if __name__ == "__main__":
     asyncio.run(establish_client())
