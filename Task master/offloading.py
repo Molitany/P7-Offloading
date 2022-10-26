@@ -6,10 +6,10 @@ import asyncio
 import websockets
 import numpy as np
 import json_numpy
-from websockets.exceptions import ConnectionClosedError
+from websockets.exceptions import ConnectionClosedError, ConnectionClosed
 
 app = Flask(__name__)
-clients = deque()
+machines = deque()
 
 matrix1 = np.array([[1, 2, 3],
                     [4, 5, 6],
@@ -42,40 +42,40 @@ def fill_array(dot_products, array_to_be_filled):
 
 
 async def new_connection(websocket):
-    clients.append({'ws': websocket, 'available': True})
+    machines.append({'ws': websocket, 'available': True})
     try:
         await websocket.wait_closed()
     finally:
-        for client in clients.copy():
-            if client.get('ws') == websocket:
-                clients.remove(client)
+        for machine in machines.copy():
+            if machine.get('ws') == websocket:
+                machines.remove(machine)
 
 
-async def client_available(client):
-    while not client.get('available'):
-        await asyncio.sleep(1)
+async def machine_available(machine):
+    while not machine.get('available'):
+        await asyncio.sleep(0.5)
 
 
 async def handle_communication(pair):
     while True:
         try:
-            client = clients.popleft()
-            clients.append(client)
-            await client_available(client)
-            client['available'] = False
-            ws = client.get('ws')
-            await ws.send(json_numpy.dumps(pair))
-            result = await ws.recv()
-            client['available'] = True
+            machine = machines.popleft()
+            machines.append(machine)
+            await machine_available(machine)
+            machine['available'] = False
+            websocket = machine.get('ws')
+            await websocket.send(json_numpy.dumps(pair))
+            result = await asyncio.wait_for(websocket.recv(), timeout=3)
+            machine['available'] = True
             return result
-        except ConnectionClosedError:
-            print(f'client {client} disconnected')
+        except (ConnectionClosed, asyncio.exceptions.TimeoutError):
+            print(f'machine {machine} disconnected')
 
 
 async def handle_server():
     while True:
-        await asyncio.sleep(1)
-        if len(task_queue) != 0 and len(clients) != 0:
+        await asyncio.sleep(0.5)
+        if len(task_queue) != 0 and len(machines) != 0:
             task = task_queue.popleft()
             vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
             result = []
@@ -83,7 +83,7 @@ async def handle_server():
                 result.append(json_numpy.loads(await f))
             dot_product_array = fill_array(result, array_to_be_filled)
             print(f'we got: {dot_product_array}\n should be: {numpy.matmul(task[0], task[1])}')
-            print(f'Clients: {len(clients)}')
+            print(f'Clients: {len(machines)}')
             task_queue.append((matrix1, matrix2))
 
 
