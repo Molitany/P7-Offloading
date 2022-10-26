@@ -6,6 +6,7 @@ import asyncio
 import websockets
 import numpy as np
 import json_numpy
+from websockets.exceptions import ConnectionClosedError
 
 app = Flask(__name__)
 clients = deque()
@@ -45,7 +46,7 @@ async def new_connection(websocket):
     try:
         await websocket.wait_closed()
     finally:
-        for client in clients:
+        for client in clients.copy():
             if client.get('ws') == websocket:
                 clients.remove(client)
 
@@ -56,15 +57,19 @@ async def client_available(client):
 
 
 async def handle_communication(pair):
-    client = clients.popleft()
-    clients.append(client)
-    await client_available(client)
-    client['available'] = False
-    ws = client.get('ws')
-    await ws.send(json_numpy.dumps(pair))
-    result = await ws.recv()
-    client['available'] = True
-    return result
+    while True:
+        try:
+            client = clients.popleft()
+            clients.append(client)
+            await client_available(client)
+            client['available'] = False
+            ws = client.get('ws')
+            await ws.send(json_numpy.dumps(pair))
+            result = await ws.recv()
+            client['available'] = True
+            return result
+        except ConnectionClosedError:
+            print(f'client {client} disconnected')
 
 
 async def handle_server():
@@ -78,6 +83,8 @@ async def handle_server():
                 result.append(json_numpy.loads(await f))
             dot_product_array = fill_array(result, array_to_be_filled)
             print(f'we got: {dot_product_array}\n should be: {numpy.matmul(task[0], task[1])}')
+            print(f'Clients: {len(clients)}')
+            task_queue.append((matrix1, matrix2))
 
 
 async def establish_server():
@@ -95,5 +102,4 @@ def receive_task():
 
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
-    # Thread(target=find_alive_ips).start()
     asyncio.run(establish_server())
