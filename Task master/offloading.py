@@ -1,4 +1,5 @@
 from collections import deque
+import json
 import numpy
 from flask import Flask, request
 from threading import Thread
@@ -52,13 +53,33 @@ async def new_connection(websocket):
 
 
 async def machine_available(machine):
+    timer = 1
     while not machine.get('available'):
         await asyncio.sleep(0.5)
+        timer += 1
+        if timer == 20:
+            return False
+    return True
 
+async def auction_call():
+    #Check all machines if available, if so, do auction with those
+    #Publish task, and receive calculated offers
+    #Calculate second lowest offer using equation, and publish the winner ID to everyone
+    #Send reward to winner
+    #Send task to winner
+    #Receive completed task
+    machines_available_for_auction = list
+    for machine in machines:
+        if await machine_available(machine):
+            machines_available_for_auction.append(machine)
+    websocketList = [key for m in machines_available_for_auction for key in m]
+    websockets.broadcast(websocketList, "")
 
 async def handle_communication(pair):
     while True:
         try:
+            # Need to handle auction, handle payment negotiation, and pay after task completion
+            # Return a tuple of values, one being the winner machine ID, other being the agreed payment valuex  
             machine = machines.popleft()
             machines.append(machine)
             await machine_available(machine)
