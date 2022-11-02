@@ -61,36 +61,98 @@ async def machine_available(machine):
             return False
     return True
 
-async def auction_call():
-    #Check all machines if available, if so, do auction with those
+
+#Do auction with all machines, its their job to respond or not
+    #Machines should always be ready to respond and decline
     #Publish task, and receive calculated offers
     #Calculate second lowest offer using equation, and publish the winner ID to everyone
     #Send reward to winner
     #Send task to winner
     #Receive completed task
-    machines_available_for_auction = list
-    for machine in machines:
-        if await machine_available(machine):
-            machines_available_for_auction.append(machine)
-    websocketList = [key for m in machines_available_for_auction for key in m]
-    websockets.broadcast(websocketList, "")
+async def auction_call(offloading_parameters):
+
+    #Universal part for all auctions
+    websocketList = [key for m in machines for key in m]
+    websockets.broadcast(websocketList, json.dumps(offloading_parameters))
+
+    receive_tasks = []
+    for connection in websocketList:
+        receive_tasks.append(asyncio.create_task(connection.recv()))
+
+    finished, unfinished = await asyncio.wait(receive_tasks, timeout=3) #Wait returns the finished and unfinished tasks in the list after the timeout
+
+    received_values = []
+    for finished_task in finished:
+        received_values.append(json.load(finished_task.result()))
+
+    if offloading_parameters["Auction_type"] == "SPSB" or offloading_parameters["Auction_type"] == "Second Price Sealed Bid":
+        second_price_sealed_bid(received_values, offloading_parameters)
+
+
+async def second_price_sealed_bid(received_values, offloading_parameters):
+
+    sorted_values = sorted(received_values, key = lambda x:x["bid"])
+    #broadcast actual reward to winner, and "you didnt win" to everone else
+    #await response from winner
+
+    
+
+
+
+
+async def get_offloading_parameters():
+
+    offloading_parameters = {}
+
+    print("""What type of offloading to use?
+    Auction (default)
+    Contract (not implemented)
+    First come, first server (FCFS) (not implemented)\n""")
+    offloading_parameters["offloading_type"] = input() or "Auction" #the or makes "Auction" a default value
+
+    if offloading_parameters["offloading_type"] == "Auction" or offloading_parameters["offloading_type"] == "auction":
+        print("""What auction type to use?
+        Second Price Sealed Bid (SPSB) (default)
+        First Price (not implemented)\n""")
+        auction_type = input()
+        offloading_parameters["auction_type"] = input() or "SPSB"
+
+    print("""What frequency of tasks?
+    Slow (1/s)
+    Medium (5/s) (default)
+    Fast (10/s)\n""")
+    offloading_parameters["task_frequency"] = input() or "Medium"
+
+    #Simply add more cases to each of these or more categories
+    #Handling of types is later and on the machines
+    #Stuff likes this can also be split into seperate functions or its own file if needed
+
+    return offloading_parameters
 
 async def handle_communication(pair):
+    #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
+    offloading_parameters = get_offloading_parameters()
+    
     while True:
         try:
-            # Need to handle auction, handle payment negotiation, and pay after task completion
-            # Return a tuple of values, one being the winner machine ID, other being the agreed payment valuex  
-            machine = machines.popleft()
-            machines.append(machine)
-            await machine_available(machine)
-            machine['available'] = False
-            websocket = machine.get('ws')
-            await websocket.send(json_numpy.dumps(pair))
-            result = await asyncio.wait_for(websocket.recv(), timeout=3)
-            machine['available'] = True
-            return result
+        #Handle the contiuous check of available machines here or earlier
+        #This stuff also need to be done for every single task that comes in
+            if offloading_parameters["offloading_type"] == "Auction":
+                auction_call(offloading_parameters)
         except (ConnectionClosed, asyncio.exceptions.TimeoutError):
-            print(f'machine {machine} disconnected')
+            print(f'a machine disconnected')
+
+
+        #     machine = machines.popleft()
+        #     machines.append(machine)
+        #     await machine_available(machine)
+        #     machine['available'] = False
+        #     websocket = machine.get('ws')
+        #     await websocket.send(json_numpy.dumps(pair))
+        #     result = await asyncio.wait_for(websocket.recv(), timeout=3)
+        #     machine['available'] = True
+        #     return result
+
 
 
 async def handle_server():
@@ -111,7 +173,7 @@ async def handle_server():
 async def establish_server():
     host = '192.168.1.10'
     port = 5001
-    async with websockets.serve(new_connection, host, port) as websocket:
+    async with websockets.serve(new_connection, host, port) as websocket: #I think this might be wrong, the handler is done for each connection, but here we're doing the connections in the handler
         await handle_server()
 
 
