@@ -69,7 +69,7 @@ async def machine_available(machine):
     #Send reward to winner
     #Send task to winner
     #Receive completed task
-async def auction_call(offloading_parameters):
+async def auction_call(offloading_parameters, task):
 
     #Universal part for all auctions
     websocketList = [key for m in machines for key in m]
@@ -86,15 +86,25 @@ async def auction_call(offloading_parameters):
         received_values.append(json.load(finished_task.result()))
 
     if offloading_parameters["Auction_type"] == "SPSB" or offloading_parameters["Auction_type"] == "Second Price Sealed Bid":
-        second_price_sealed_bid(received_values, offloading_parameters)
+        second_price_sealed_bid(received_values, offloading_parameters, task)
 
 
-async def second_price_sealed_bid(received_values, offloading_parameters):
+async def second_price_sealed_bid(received_values, offloading_parameters, task):
 
     sorted_values = sorted(received_values, key = lambda x:x["bid"])
     #broadcast actual reward to winner, and "you didnt win" to everone else
     #await response from winner
 
+    lowest_value, second_lowest = sorted_values[0], sorted_values[1]
+
+    non_winners = [m for m in machines if m != lowest_value]
+    non_winner_sockets = [key for m in non_winners for key in m]
+    await websockets.broadcast(non_winner_sockets, json.dumbs({"winner": "false"}))
+    await websockets.send(lowest_value["socket"], json.dumbs({"winner": "true", "reward": second_lowest["bid"], "task": task}))
+
+    computation_result = await asyncio.wait_for(lowest_value["socket"].recv(), timeout=10)
+
+    return computation_result
     
 
 
@@ -136,9 +146,9 @@ async def handle_communication(pair):
     while True:
         try:
         #Handle the contiuous check of available machines here or earlier
-        #This stuff also need to be done for every single task that comes in
+        #This stuff also need to be done concurrently for every single task that comes in
             if offloading_parameters["offloading_type"] == "Auction":
-                auction_call(offloading_parameters)
+                auction_call(offloading_parameters, pair)
         except (ConnectionClosed, asyncio.exceptions.TimeoutError):
             print(f'a machine disconnected')
 
