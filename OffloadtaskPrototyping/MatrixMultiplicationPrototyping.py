@@ -55,4 +55,9 @@ dot_products = calc_split_matrix(vector_pairs)
 dot_product_array = fill_array(dot_products, array_to_be_filled)
 
 #This would then be sent back to the local machine
-print(dot_product_array)
+print(np.array(dot_product_array))
+test = np.array([[ 30,36,42,60],
+ [ 66,81,96,150],
+ [102,126,151,240],
+ [156,192,228,360]])
+print(test == np.matmul(test1, test2))
