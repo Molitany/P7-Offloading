@@ -1,16 +1,17 @@
+from asyncio import shield, wait_for, sleep, as_completed, run
+import asyncio
 from collections import deque
 import json
 import numpy
 from flask import Flask, request
 from threading import Thread
-import asyncio
 import websockets
 import numpy as np
 import json_numpy
 from websockets.exceptions import ConnectionClosedError, ConnectionClosed
 
 app = Flask(__name__)
-machines = deque()
+machines_connected = deque()
 
 matrix1 = np.array([[1, 2, 3],
                     [4, 5, 6],
@@ -21,6 +22,7 @@ matrix2 = np.array([[1, 2, 3, 10],
                     [4, 5, 6, 10],
                     [7, 8, 9, 10]])
 task_queue = deque([(matrix1, matrix2)])
+sub_tasks = {}
 
 
 def split_matrix(a, b):
@@ -43,23 +45,27 @@ def fill_array(dot_products, array_to_be_filled):
 
 
 async def new_connection(websocket):
-    machines.append({'ws': websocket, 'available': True})
+    machines_connected.append({'ws': websocket, 'available': True})
     try:
         await websocket.wait_closed()
     finally:
-        for machine in machines.copy():
+        for machine in machines_connected.copy():
             if machine.get('ws') == websocket:
-                machines.remove(machine)
+                machines_connected.remove(machine)
 
 
 async def machine_available(machine):
     timer = 1
     while not machine.get('available'):
+<<<<<<< HEAD
         await asyncio.sleep(0.5)
         timer += 1
         if timer == 20:
             return False
     return True
+=======
+        await sleep(0.1)
+>>>>>>> main
 
 
 #Do auction with all machines, its their job to respond or not
@@ -144,6 +150,7 @@ async def handle_communication(pair):
     offloading_parameters = get_offloading_parameters()
     
     while True:
+<<<<<<< HEAD
         try:
         #Handle the contiuous check of available machines here or earlier
         #This stuff also need to be done concurrently for every single task that comes in
@@ -163,21 +170,57 @@ async def handle_communication(pair):
         #     machine['available'] = True
         #     return result
 
+=======
+        machine = machines_connected.popleft()
+        machines_connected.append(machine)
+        await machine_available(machine)
+        machine['available'] = False
+        websocket = machine.get('ws')
+        await websocket.send(json_numpy.dumps(pair))
+        result = json_numpy.loads(await asyncio.wait_for(websocket.recv(), timeout=5))
+        machine['available'] = True
+        return result
+>>>>>>> main
 
 
 async def handle_server():
     while True:
-        await asyncio.sleep(0.5)
-        if len(task_queue) != 0 and len(machines) != 0:
+        await sleep(0.1)
+        if len(task_queue) != 0 and len(machines_connected) != 0:
+            global sub_tasks
             task = task_queue.popleft()
             vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
-            result = []
-            for f in asyncio.as_completed([handle_communication(pair) for pair in vector_pairs]):
-                result.append(json_numpy.loads(await f))
-            dot_product_array = fill_array(result, array_to_be_filled)
-            print(f'we got: {dot_product_array}\n should be: {numpy.matmul(task[0], task[1])}')
-            print(f'Clients: {len(machines)}')
+            for pair in vector_pairs:
+                sub_tasks.update({asyncio.create_task(handle_communication(pair)): pair})
+            results = await safe_send()
+
+            dot_product_array = fill_array(results, array_to_be_filled)
+            print(f'we got: {dot_product_array}\n should be: {numpy.matmul(matrix1, matrix2)}\n'
+                  f'equal: {dot_product_array == numpy.matmul(matrix1, matrix2)}')
+            print(f'Clients: {len(machines_connected)}')
             task_queue.append((matrix1, matrix2))
+
+
+async def safe_send():
+    global sub_tasks
+    results = []
+    while len(sub_tasks) != 0:
+        try:
+            done, pending = await asyncio.wait(sub_tasks.keys(), timeout=5, return_when=asyncio.FIRST_EXCEPTION)
+            for task in done:
+                if task.exception() is None:
+                    results.append(task.result())
+                    sub_tasks.pop(task)
+        except (asyncio.exceptions.TimeoutError, ConnectionClosed) as e:
+            pass
+        finally:
+            if sub_tasks != 0:
+                map(lambda sub_task: sub_task.cancel(), sub_tasks.keys())
+                pairs = list(sub_tasks.copy().values())
+                sub_tasks.clear()
+                for pair in pairs:
+                    sub_tasks.update({asyncio.create_task(handle_communication(pair)): pair})
+    return results
 
 
 async def establish_server():
@@ -194,5 +237,5 @@ def receive_task():
 
 
 if __name__ == "__main__":
-    Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
-    asyncio.run(establish_server())
+    # Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
+    run(establish_server())
