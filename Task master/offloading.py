@@ -1,75 +1,121 @@
-import concurrent
-from multiprocessing import Process
-
+from asyncio import shield, wait_for, sleep, as_completed, run
+import asyncio
+from collections import deque
+import numpy
 from flask import Flask, request
 from threading import Thread
-import asyncio
 import websockets
-import os
-
-from scapy.layers.inet import IP, TCP
-from scapy.layers.l2 import Ether, ARP, srp
-from scapy.sendrecv import sr
+import numpy as np
+import json_numpy
+from websockets.exceptions import ConnectionClosedError, ConnectionClosed
 
 app = Flask(__name__)
-machine_ips = {
-    "alive": [],
-    "potential": []
-}
-servers_open = {}
-task_queue = []
+machines_connected = deque()
+
+matrix1 = np.array([[1, 2, 3],
+                    [4, 5, 6],
+                    [7, 8, 9],
+                    [10, 12, 14]])
+
+matrix2 = np.array([[1, 2, 3, 10],
+                    [4, 5, 6, 10],
+                    [7, 8, 9, 10]])
+task_queue = deque([(matrix1, matrix2)])
+sub_tasks = {}
 
 
-async def get_machine_ips():
-    local_network = "192.168.1.0/24"
-    temp_dict = {
-        "alive": [],
-        "potential": []
-    }
-    ans, unans = srp(Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=local_network), timeout=2, iface="eno1")
-    if len(ans) != 0:
-        for ip in ans:
-            temp_dict['potential'].append(ip.answer.psrc)
-        temp_dict['alive'] = machine_ips.get('alive')
-        machine_ips.update(temp_dict)
+def split_matrix(a, b):
+    array_to_be_filled = np.zeros((np.shape(a)[0], np.shape(b)[1]))
+    vector_pairs = []
+    if np.shape(a)[1] == np.shape(b)[0]:
+        for i in range(0, np.shape(a)[0]):
+            for j in range(0, np.shape(b)[1]):
+                vector_pairs.append({'vector': [a[i, :].tolist(), b[:, j].tolist()],
+                                     'cell': [i, j]})
+    else:
+        print('illegal vector multiplication')
+    return vector_pairs, array_to_be_filled
 
 
-def find_alive_ips():
-    port = 5001
-    while True:
-        asyncio.run(get_machine_ips())
-        if len(machine_ips.get("potential")) != 0:
-            for ip in machine_ips.get("potential"):
-                print(f"new ip found: {ip}, checking if server is up")
-                ans, unans = sr(IP(dst=ip) / TCP(dport=port, flags="S"), inter=0.5, retry=-2, timeout=1)
-                if len(ans) != 0:
-                    if 'R' not in str(ans[0].answer.payload.fields.get('flags')):
-                        print(f'server is alive on {ip}\n')
-                        if ip not in machine_ips.get('alive'):
-                            machine_ips['alive'].append(ip)
-                    else:
-                        print(f'server is dead on {ip}\n')
-                        if ip in machine_ips.get('alive'):
-                            machine_ips['alive'].remove(ip)
-                            server = servers_open.pop(ip, None)
-                            if server is not None:
-                                server.terminate()
+def fill_array(dot_products, array_to_be_filled):
+    for dot_product in dot_products:
+        array_to_be_filled[dot_product['cell'][0]][dot_product['cell'][1]] = dot_product['dot_product']
+    return array_to_be_filled.tolist()
 
 
-async def handler(websocket):
+async def new_connection(websocket):
+    machines_connected.append({'ws': websocket, 'available': True})
     try:
-        async for task in websocket:
-            websocket.send(task)
-    except websockets.ConnectionClosed:
-        print('connection terminated')
+        await websocket.wait_closed()
+    finally:
+        for machine in machines_connected.copy():
+            if machine.get('ws') == websocket:
+                machines_connected.remove(machine)
+
+
+async def machine_available(machine):
+    while not machine.get('available'):
+        await sleep(0.1)
+
+
+async def handle_communication(pair):
+    while True:
+        machine = machines_connected.popleft()
+        machines_connected.append(machine)
+        await machine_available(machine)
+        machine['available'] = False
+        websocket = machine.get('ws')
+        await websocket.send(json_numpy.dumps(pair))
+        result = json_numpy.loads(await asyncio.wait_for(websocket.recv(), timeout=5))
+        machine['available'] = True
+        return result
+
+
+async def handle_server():
+    while True:
+        await sleep(0.1)
+        if len(task_queue) != 0 and len(machines_connected) != 0:
+            global sub_tasks
+            task = task_queue.popleft()
+            vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
+            for pair in vector_pairs:
+                sub_tasks.update({asyncio.create_task(handle_communication(pair)): pair})
+            results = await safe_send()
+
+            dot_product_array = fill_array(results, array_to_be_filled)
+            print(f'we got: {dot_product_array}\n should be: {numpy.matmul(matrix1, matrix2)}\n'
+                  f'equal: {dot_product_array == numpy.matmul(matrix1, matrix2)}')
+            print(f'Clients: {len(machines_connected)}')
+            task_queue.append((matrix1, matrix2))
+
+
+async def safe_send():
+    global sub_tasks
+    results = []
+    while len(sub_tasks) != 0:
+        try:
+            done, pending = await asyncio.wait(sub_tasks.keys(), timeout=5, return_when=asyncio.FIRST_EXCEPTION)
+            for task in done:
+                if task.exception() is None:
+                    results.append(task.result())
+                    sub_tasks.pop(task)
+        except (asyncio.exceptions.TimeoutError, ConnectionClosed) as e:
+            pass
+        finally:
+            if sub_tasks != 0:
+                map(lambda sub_task: sub_task.cancel(), sub_tasks.keys())
+                pairs = list(sub_tasks.copy().values())
+                sub_tasks.clear()
+                for pair in pairs:
+                    sub_tasks.update({asyncio.create_task(handle_communication(pair)): pair})
+    return results
 
 
 async def establish_server():
-    host = os.popen(
-        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
+    host = '192.168.1.10'
     port = 5001
-    async with websockets.serve(handler, host, port) as websocket:
-        await asyncio.Future()
+    async with websockets.serve(new_connection, host, port) as websocket:
+        await handle_server()
 
 
 @app.route("/", methods=["POST"])
@@ -79,6 +125,5 @@ def receive_task():
 
 
 if __name__ == "__main__":
-    Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
-    # Thread(target=find_alive_ips).start()
-    asyncio.run(establish_server())
+    # Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
+    run(establish_server())
