@@ -9,6 +9,7 @@ import websockets
 import numpy as np
 import json_numpy
 from websockets.exceptions import ConnectionClosedError, ConnectionClosed
+import auction
 
 app = Flask(__name__)
 machines_connected = deque()
@@ -55,17 +56,8 @@ async def new_connection(websocket):
 
 
 async def machine_available(machine):
-    timer = 1
     while not machine.get('available'):
-<<<<<<< HEAD
-        await asyncio.sleep(0.5)
-        timer += 1
-        if timer == 20:
-            return False
-    return True
-=======
         await sleep(0.1)
->>>>>>> main
 
 
 #Do auction with all machines, its their job to respond or not
@@ -75,45 +67,6 @@ async def machine_available(machine):
     #Send reward to winner
     #Send task to winner
     #Receive completed task
-async def auction_call(offloading_parameters, task):
-
-    #Universal part for all auctions
-    websocketList = [key for m in machines for key in m]
-    websockets.broadcast(websocketList, json.dumps(offloading_parameters))
-
-    receive_tasks = []
-    for connection in websocketList:
-        receive_tasks.append(asyncio.create_task(connection.recv()))
-
-    finished, unfinished = await asyncio.wait(receive_tasks, timeout=3) #Wait returns the finished and unfinished tasks in the list after the timeout
-
-    received_values = []
-    for finished_task in finished:
-        received_values.append(json.load(finished_task.result()))
-
-    if offloading_parameters["Auction_type"] == "SPSB" or offloading_parameters["Auction_type"] == "Second Price Sealed Bid":
-        second_price_sealed_bid(received_values, offloading_parameters, task)
-
-
-async def second_price_sealed_bid(received_values, offloading_parameters, task):
-
-    sorted_values = sorted(received_values, key = lambda x:x["bid"])
-    #broadcast actual reward to winner, and "you didnt win" to everone else
-    #await response from winner
-
-    lowest_value, second_lowest = sorted_values[0], sorted_values[1]
-
-    non_winners = [m for m in machines if m != lowest_value]
-    non_winner_sockets = [key for m in non_winners for key in m]
-    await websockets.broadcast(non_winner_sockets, json.dumbs({"winner": "false"}))
-    await websockets.send(lowest_value["socket"], json.dumbs({"winner": "true", "reward": second_lowest["bid"], "task": task}))
-
-    computation_result = await asyncio.wait_for(lowest_value["socket"].recv(), timeout=10)
-
-    return computation_result
-    
-
-
 
 
 async def get_offloading_parameters():
@@ -150,37 +103,13 @@ async def handle_communication(pair):
     offloading_parameters = get_offloading_parameters()
     
     while True:
-<<<<<<< HEAD
         try:
         #Handle the contiuous check of available machines here or earlier
         #This stuff also need to be done concurrently for every single task that comes in
             if offloading_parameters["offloading_type"] == "Auction":
-                auction_call(offloading_parameters, pair)
+                auction.auction_call(offloading_parameters, pair, machines_connected)
         except (ConnectionClosed, asyncio.exceptions.TimeoutError):
             print(f'a machine disconnected')
-
-
-        #     machine = machines.popleft()
-        #     machines.append(machine)
-        #     await machine_available(machine)
-        #     machine['available'] = False
-        #     websocket = machine.get('ws')
-        #     await websocket.send(json_numpy.dumps(pair))
-        #     result = await asyncio.wait_for(websocket.recv(), timeout=3)
-        #     machine['available'] = True
-        #     return result
-
-=======
-        machine = machines_connected.popleft()
-        machines_connected.append(machine)
-        await machine_available(machine)
-        machine['available'] = False
-        websocket = machine.get('ws')
-        await websocket.send(json_numpy.dumps(pair))
-        result = json_numpy.loads(await asyncio.wait_for(websocket.recv(), timeout=5))
-        machine['available'] = True
-        return result
->>>>>>> main
 
 
 async def handle_server():
@@ -226,7 +155,7 @@ async def safe_send():
 async def establish_server():
     host = '192.168.1.10'
     port = 5001
-    async with websockets.serve(new_connection, host, port) as websocket: #I think this might be wrong, the handler is done for each connection, but here we're doing the connections in the handler
+    async with websockets.serve(new_connection, host, port) as websocket:
         await handle_server()
 
 
