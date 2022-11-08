@@ -116,7 +116,7 @@ fabric.properties
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
-__pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -271,8 +271,6 @@ cython_debug/
 
 # pytest
 .pytest_cache
-tests/__pycache__/
-.pyc
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
