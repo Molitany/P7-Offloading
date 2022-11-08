@@ -9,7 +9,7 @@ async def auction_call(offloading_parameters, task, machines_connected):
     offloading_parameters["task"] = task
 
     websocketList = [key for m in machines_connected for key in m]
-    websockets.broadcast(websocketList, json.dumps(offloading_parameters)) #Broadcast the offloading parameters, including the task
+    websockets.broadcast(websocketList, json.dumps(offloading_parameters)) #Broadcast the offloading parameters, including the task, to everyone
 
     receive_tasks = []
     for connection in websocketList:

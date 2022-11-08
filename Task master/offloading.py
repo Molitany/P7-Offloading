@@ -77,7 +77,7 @@ async def get_offloading_parameters():
     Auction (default)
     Contract (not implemented)
     First come, first server (FCFS) (not implemented)\n""")
-    offloading_parameters["offloading_type"] = input() or "Auction" #the or makes "Auction" a default value
+    offloading_parameters["offloading_type"] = input() or "Auction"
 
     if offloading_parameters["offloading_type"] == "Auction" or offloading_parameters["offloading_type"] == "auction":
         print("""What auction type to use?
@@ -91,6 +91,11 @@ async def get_offloading_parameters():
     Medium (5/s) (default)
     Fast (10/s)\n""")
     offloading_parameters["task_frequency"] = input() or "Medium"
+
+    print("""Do the tasks have deadlines?
+    Yes
+    No (Default)\n""")
+    offloading_parameters["deadlines"] = input() or "No"
 
     #Simply add more cases to each of these or more categories
     #Handling of types is later and on the machines
