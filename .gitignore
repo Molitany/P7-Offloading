@@ -271,6 +271,7 @@ cython_debug/
 
 # pytest
 .pytest_cache
+tests/__pycache__/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
