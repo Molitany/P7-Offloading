@@ -72,17 +72,15 @@ async def establish_client():
             await asyncio.sleep(1)
 
 
-if __name__ == "__main__":
-    asyncio.run(establish_client())
-
 async def bid_on_SPSB(offloading_parameters, websocket):
+    global idle_start_time
+    global internal_value
     #We have the task as offloading_parameters["task"] for difficulty measuring
-
     # we have deadlines, the task, the frequency, the max reward, and fines
     op = offloading_parameters
 
-    global internal_value
     internal_value = (idle_start_time - time.time()) * IDLE_POWER_CONSUMPTION
+    idle_start_time = time.time()
 
     if internal_value < 0:
         bid_value = op["max_reward"] - random.randrange(1, 4) + abs(internal_value)
@@ -92,4 +90,7 @@ async def bid_on_SPSB(offloading_parameters, websocket):
 
     return json_numpy.loads(await websocket.recv())
 
+    
+if __name__ == '__main__':
+    asyncio.run(establish_client())
     
