@@ -3,10 +3,11 @@ import json_numpy
 
 from websockets import connect
 import numpy as np
-from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK, ConnectionClosed
+from websockets.exceptions import ConnectionClosed
 
 
 def calc_split_matrix(pair):
+    """Dot products the pair into the respective cell."""
     print(pair)
     dot_products = {"dot_product": np.dot(pair["vector"][0], pair["vector"][1]),
                     "cell": pair["cell"]}
@@ -14,6 +15,12 @@ def calc_split_matrix(pair):
 
 
 async def establish_client():
+    """
+    Starts the client and connects to the server on ws://192.168.1.10:5001.
+    If the client fails then it will retry until the server is available again.
+
+    Once connected wait for a task and execute it, sending the result back.
+    """
     host = '192.168.1.10'
     port = 5001
     while True:
