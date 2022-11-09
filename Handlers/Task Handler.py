@@ -3,7 +3,7 @@ import json_numpy
 
 from websockets import connect
 import numpy as np
-from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import ConnectionClosed, InvalidMessage
 import random
 
 
@@ -35,7 +35,7 @@ async def establish_client():
                     offloading_parameters = json_numpy.loads(await websocket.recv())
                     if offloading_parameters["offloading_type"] == "Auction":
                         if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB":
-                            auction_result = bid_on_SPSB(offloading_parameters, websocket)
+                            auction_result = await bid_on_SPSB(offloading_parameters, websocket)
                     
                         if auction_result["winner"] == True:
                             result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
@@ -46,7 +46,7 @@ async def establish_client():
                                 internal_value += auction_result["reward"]
 
         except ConnectionRefusedError:
-            print('no connection to server')
+            print('Connection refused')
             await asyncio.sleep(1)
         except ConnectionClosed:
             print('Connection closed')
@@ -54,6 +54,10 @@ async def establish_client():
         except asyncio.exceptions.TimeoutError:
             print('Connection timed out')
             await asyncio.sleep(1)
+        except InvalidMessage:
+            print('Invalid Message')
+            await asyncio.sleep(1)
+
 
 if __name__ == "__main__":
     asyncio.run(establish_client())

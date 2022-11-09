@@ -12,8 +12,8 @@ import auction
 app = Flask(__name__)
 machines_connected = Queue()
 
-matrix1 = np.random.rand(10, 10)
-matrix2 = np.random.rand(10, 10)
+matrix1 = np.random.rand(2, 2)
+matrix2 = np.random.rand(2, 2)
 # the task queue is a list of pairs where both elements are matrices
 task_queue = deque([(matrix1, matrix2)])
 
@@ -73,7 +73,6 @@ async def get_offloading_parameters():
         print("""What auction type to use?
         Second Price Sealed Bid (SPSB) (default)
         First Price (not implemented)\n""")
-        auction_type = input()
         offloading_parameters["auction_type"] = input() or "SPSB"
 
     print("""What frequency of tasks?
@@ -98,16 +97,13 @@ async def get_offloading_parameters():
 
     return offloading_parameters
 
-async def handle_communication(pair):
-    #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
-    offloading_parameters = get_offloading_parameters()
-    
+async def handle_communication(pair, offloading_parameters):
     while True:
         try:
         #Handle the contiuous check of available machines here or earlier
         #This stuff also need to be done concurrently for every single task that comes in
             if offloading_parameters["offloading_type"] == "Auction":
-                auction.auction_call(offloading_parameters, pair, machines_connected)
+                await auction.auction_call(offloading_parameters, pair, machines_connected)
         except (ConnectionClosed, asyncio.exceptions.TimeoutError):
             print(f'a machine disconnected')
 
@@ -134,21 +130,23 @@ async def safe_send(vector_pairs: list):
     """Split vector pairs and safely send the pairs to machines."""
     sub_tasks = {}
     results = []
+    #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
+    offloading_parameters = await get_offloading_parameters()
     # Create tasks for all the pairs
     for pair in vector_pairs:
-        sub_tasks.update({create_task(handle_communication(pair)): pair})
+        sub_tasks.update({create_task(handle_communication(pair, offloading_parameters)): pair})
     while len(sub_tasks) != 0:
         try:
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
             # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await wait(sub_tasks.keys(), timeout=5, return_when=FIRST_EXCEPTION)
+            done, pending = await wait(sub_tasks.keys(), timeout=30, return_when=FIRST_EXCEPTION)
             for task in done:
                 # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
                 if task.exception() is None:
                     results.append(task.result())
                     sub_tasks.pop(task)
-        except (AsyncTimeoutError, ConnectionClosed) as e:
-            pass
+        except Exception as e:
+            print(e)
         finally:
             # if we are not done then we cancel all of the tasks, as they have been assigned to a machine already, 
             # and create the missing tasks again and try sending the missing pairs again. 
@@ -157,7 +155,7 @@ async def safe_send(vector_pairs: list):
                 pairs = list(sub_tasks.copy().values())
                 sub_tasks.clear()
                 for pair in pairs:
-                    sub_tasks.update({create_task(handle_communication(pair)): pair})
+                    sub_tasks.update({create_task(handle_communication(pair, offloading_parameters)): pair})
     return results
 
 
