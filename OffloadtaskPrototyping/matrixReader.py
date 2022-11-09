@@ -3,15 +3,14 @@ import json
 import random
 from time import sleep
 from datetime import datetime, timedelta
+from MatrixGenerator import generate_matrices
 
-f = open("matrices.json", "r")
-encoded_matrices = json.loads(f.read())
-f.close()
+matrices = generate_matrices()
 
-print(len(encoded_matrices))
+print(len(matrices))
 
-while (len(encoded_matrices) != 0):
-    pair = random.choice(encoded_matrices)
+while (len(matrices) != 0):
+    pair = random.choice(matrices)
     pair["mat1"] = json_numpy.loads(pair["mat1"])
     pair["mat2"] = json_numpy.loads(pair["mat2"])
     pair["deadline"] = datetime.now() + timedelta(pair["deadlineSeconds"])
