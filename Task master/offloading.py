@@ -1,75 +1,121 @@
-import concurrent
-from multiprocessing import Process
-
-from flask import Flask, request
-from threading import Thread
+from asyncio import sleep, run, Queue, create_task, wait, FIRST_EXCEPTION
 import asyncio
+from asyncio.exceptions import TimeoutError as AsyncTimeoutError
+from collections import deque
+from flask import Flask, request
 import websockets
-import os
-
-from scapy.layers.inet import IP, TCP
-from scapy.layers.l2 import Ether, ARP, srp
-from scapy.sendrecv import sr
+import numpy as np
+import json_numpy
+from websockets.exceptions import ConnectionClosed
 
 app = Flask(__name__)
-machine_ips = {
-    "alive": [],
-    "potential": []
-}
-servers_open = {}
-task_queue = []
+machines_connected = Queue()
+
+matrix1 = np.random.rand(10, 10)
+matrix2 = np.random.rand(10, 10)
+# the task queue is a list of pairs where both elements are matrices
+task_queue = deque([(matrix1, matrix2)])
+
+def split_matrix(a, b):
+    """Split the matrix into vector pairs and the specific cell to be multiplied into."""
+    array_to_be_filled = np.zeros((np.shape(a)[0], np.shape(b)[1]))
+    vector_pairs = []
+    if np.shape(a)[1] == np.shape(b)[0]:
+        for i in range(0, np.shape(a)[0]):
+            for j in range(0, np.shape(b)[1]):
+                vector_pairs.append({'vector': [a[i, :].tolist(), b[:, j].tolist()],
+                                     'cell': [i, j]})
+    else:
+        print('illegal vector multiplication')
+    return vector_pairs, array_to_be_filled
 
 
-async def get_machine_ips():
-    local_network = "192.168.1.0/24"
-    temp_dict = {
-        "alive": [],
-        "potential": []
-    }
-    ans, unans = srp(Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=local_network), timeout=2, iface="eno1")
-    if len(ans) != 0:
-        for ip in ans:
-            temp_dict['potential'].append(ip.answer.psrc)
-        temp_dict['alive'] = machine_ips.get('alive')
-        machine_ips.update(temp_dict)
+def fill_array(dot_products, array_to_be_filled):
+    """Gathers the pairs back into a full matrix post multiplication."""
+    for dot_product in dot_products:
+        array_to_be_filled[dot_product['cell'][0]][dot_product['cell'][1]] = dot_product['dot_product']
+    return array_to_be_filled.tolist()
 
 
-def find_alive_ips():
-    port = 5001
-    while True:
-        asyncio.run(get_machine_ips())
-        if len(machine_ips.get("potential")) != 0:
-            for ip in machine_ips.get("potential"):
-                print(f"new ip found: {ip}, checking if server is up")
-                ans, unans = sr(IP(dst=ip) / TCP(dport=port, flags="S"), inter=0.5, retry=-2, timeout=1)
-                if len(ans) != 0:
-                    if 'R' not in str(ans[0].answer.payload.fields.get('flags')):
-                        print(f'server is alive on {ip}\n')
-                        if ip not in machine_ips.get('alive'):
-                            machine_ips['alive'].append(ip)
-                    else:
-                        print(f'server is dead on {ip}\n')
-                        if ip in machine_ips.get('alive'):
-                            machine_ips['alive'].remove(ip)
-                            server = servers_open.pop(ip, None)
-                            if server is not None:
-                                server.terminate()
-
-
-async def handler(websocket):
+async def new_connection(websocket):
+    """
+    Upon a new websocket connection add the machine to the known machines and set it to available\n
+    when the connection is disrupted (Timeout, ConnectionClosed, etc.) the machine is removed from the known machines. 
+    """
+    await machines_connected.put(websocket)
     try:
-        async for task in websocket:
-            websocket.send(task)
-    except websockets.ConnectionClosed:
-        print('connection terminated')
+        await websocket.wait_closed()
+    finally:
+        machines_connected._queue.remove(websocket)
+
+
+async def handle_communication(pair):
+    """Send and recieve on an available machine through websockets."""
+    while True:
+        # Wait for a machine to be able to recieve order
+        # mutex by taking machine from list of available machines
+        machine = await machines_connected.get()
+        await machine.send(json_numpy.dumps(pair))
+        result = json_numpy.loads(await machine.recv())
+        await machines_connected.put(machine)
+        return result
+
+
+async def handle_server():
+    """Has the server "run in the background" for task offloading to the machines connected."""
+    while True:
+        await sleep(0.1)
+        # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
+        if len(task_queue) != 0 and not machines_connected.empty():
+            task = task_queue.popleft()
+            vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
+            # send vector pairs to machines. 
+            results = await safe_send(vector_pairs)
+            # Upon retrieval put the matrix back together and display the result.
+            dot_product_array = fill_array(results, array_to_be_filled)
+            print(f'we got: {dot_product_array}\n should be: {np.matmul(matrix1, matrix2)}\n'
+                  f'equal: {dot_product_array == np.matmul(matrix1, matrix2)}')
+            print(f'Clients: {machines_connected.qsize()}')
+            task_queue.append((matrix1, matrix2))
+
+
+async def safe_send(vector_pairs: list):
+    """Split vector pairs and safely send the pairs to machines."""
+    sub_tasks = {}
+    results = []
+    # Create tasks for all the pairs
+    for pair in vector_pairs:
+        sub_tasks.update({create_task(handle_communication(pair)): pair})
+    while len(sub_tasks) != 0:
+        try:
+            # Run all of the tasks "at once" waiting for 5 seconds then it times out.
+            # The wait stops when a task hits an exception or until they are all completed
+            done, pending = await wait(sub_tasks.keys(), timeout=5, return_when=FIRST_EXCEPTION)
+            for task in done:
+                # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
+                if task.exception() is None:
+                    results.append(task.result())
+                    sub_tasks.pop(task)
+        except (AsyncTimeoutError, ConnectionClosed) as e:
+            pass
+        finally:
+            # if we are not done then we cancel all of the tasks, as they have been assigned to a machine already, 
+            # and create the missing tasks again and try sending the missing pairs again. 
+            if sub_tasks != 0:
+                map(lambda sub_task: sub_task.cancel(), sub_tasks.keys())
+                pairs = list(sub_tasks.copy().values())
+                sub_tasks.clear()
+                for pair in pairs:
+                    sub_tasks.update({create_task(handle_communication(pair)): pair})
+    return results
 
 
 async def establish_server():
-    host = os.popen(
-        'ip addr show eno1 | grep "\<inet\>" | awk \'{ print $2 }\' | awk -F "/" \'{ print $1 }\'').read().strip()
+    """Start a websocket server on ws://192.168.1.10:5001, upon a new connection call new_connection while the server runs handle_server."""
+    host = '192.168.1.10'
     port = 5001
-    async with websockets.serve(handler, host, port) as websocket:
-        await asyncio.Future()
+    async with websockets.serve(new_connection, host, port) as websocket:
+        await handle_server()
 
 
 @app.route("/", methods=["POST"])
@@ -79,6 +125,6 @@ def receive_task():
 
 
 if __name__ == "__main__":
-    Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
-    # Thread(target=find_alive_ips).start()
-    asyncio.run(establish_server())
+    # Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
+    # Run establish_server asynchronously 
+    run(establish_server())
