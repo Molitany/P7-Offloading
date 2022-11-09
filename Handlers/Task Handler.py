@@ -5,14 +5,23 @@ from websockets import connect
 import numpy as np
 from websockets.exceptions import ConnectionClosed
 import random
+import time
 
-
+internal_value = 0
+idle_start_time = time.time()
+IDLE_POWER_CONSUMPTION = 10
+ACTIVE_POWER_CONSUMPTION = 50
 
 def calc_split_matrix(pair):
+    active_start_time = time.time()
+
     """Dot products the pair into the respective cell."""
     print(pair)
     dot_products = {"dot_product": np.dot(pair["vector"][0], pair["vector"][1]),
                     "cell": pair["cell"], "completed": True}
+
+    global internal_value
+    internal_value -= (active_start_time - time.time()) * ACTIVE_POWER_CONSUMPTION
     return dot_products
 
 
@@ -25,7 +34,7 @@ async def establish_client():
     """
     host = '192.168.1.10'
     port = 5001
-    internal_value = 0
+
 
     while True:
         try:
@@ -43,7 +52,11 @@ async def establish_client():
                             #This does require far better estimation of whether auctions are worth joining
                             if result["completed"] == True:
                                 await websocket.send(json_numpy.dumps(result))
+                                global internal_value
                                 internal_value += auction_result["reward"]
+                                global idle_start_time
+                                idle_start_time = time.time()
+
 
         except ConnectionRefusedError:
             print('no connection to server')
@@ -64,8 +77,14 @@ async def bid_on_SPSB(offloading_parameters, websocket):
     # we have deadlines, the task, the frequency, the max reward, and fines
     op = offloading_parameters
 
+    global internal_value
+    internal_value = (idle_start_time - time.time()) * IDLE_POWER_CONSUMPTION
+
+    if internal_value < 0:
+        bid_value = op["max_reward"] - random.randrange(1, 4) + abs(internal_value)
+
     if len(op["task"]["vector"]) < op["max_reward"]:
-        websocket.send(json_numpy.dumps({"bid": op["max_reward"] - random.randrange(1, 4)}))
+        websocket.send(json_numpy.dumps({"bid": bid_value}))
 
     return json_numpy.loads(await websocket.recv())
 
