@@ -7,7 +7,7 @@ async def auction_call(offloading_parameters, task, machines_connected):
 
     #Universal part for all auctions
     offloading_parameters["task"] = task
-    offloading_parameters["reward"] = random.randrange(1, 11) #change reward calculation eventually
+    offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
     if offloading_parameters.get("Fines") == "Yes": 
         offloading_parameters["fines"] = random.randrange(1, 6) #change fine calculation too
     
@@ -38,8 +38,8 @@ async def second_price_sealed_bid(received_values, offloading_parameters, task, 
 
     lowest_value, second_lowest = sorted_values[0], sorted_values[1]
 
-    non_winners = [m for m in machines_connected if m != lowest_value]
-    non_winner_sockets = [key for m in non_winners for key in m]
+    non_winners = [m for m in machines_connected._queue if m != lowest_value]
+    non_winner_sockets = [m for m in non_winners]
     await websockets.broadcast(non_winner_sockets, json.dumbs({"winner": False}))
     await websockets.send(lowest_value["socket"], json.dumbs({"winner": True, "reward": second_lowest["bid"], "task": task}))
 
