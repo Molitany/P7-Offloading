@@ -1,12 +1,15 @@
 import json
 import websockets
 import asyncio
-
+import random
 
 async def auction_call(offloading_parameters, task, machines_connected):
 
     #Universal part for all auctions
     offloading_parameters["task"] = task
+    offloading_parameters["reward"] = random.randrange(1, 11) #change reward calculation eventually
+    if offloading_parameters["fine"] == "Yes": offloading_parameters["fine"] = random.randrange(1, 6) #change fine calculation too
+    
 
     websocketList = [key for m in machines_connected for key in m]
     websockets.broadcast(websocketList, json.dumps(offloading_parameters)) #Broadcast the offloading parameters, including the task, to everyone

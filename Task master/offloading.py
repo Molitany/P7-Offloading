@@ -87,6 +87,11 @@ async def get_offloading_parameters():
     No (Default)\n""")
     offloading_parameters["deadlines"] = input() or "No"
 
+    print("""Are there fines for abandoning a job or going over a possible deadline?
+    No (default)
+    Yes \n""")
+    offloading_parameters["fines"] = input() or "No"
+
     #Simply add more cases to each of these or more categories
     #Handling of types is later and on the machines
     #Stuff likes this can also be split into seperate functions or its own file if needed
