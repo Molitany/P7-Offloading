@@ -93,12 +93,13 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
     if internal_value < 0:
         bid_value = estimated_cost_of_task + abs(internal_value)
 
-    if len(op["task"]["vector"]) < op["max_reward"]:
+    if bid_value < op["max_reward"]:
         await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
+    else:
+        await websocket.send(json_numpy.dumps({"bid": op["max_reward"], 'id': id}))
 
     return json_numpy.loads(await websocket.recv())
 
     
 if __name__ == '__main__':
     asyncio.run(establish_client())
-    
