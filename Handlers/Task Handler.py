@@ -89,7 +89,7 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
     idle_start_time = time.time()
 
     #Change the bid to be based on the dynamically estimated cost of the task
-    estimated_cost_of_task = task_difficulty_duration.get(len(op["task"]["vector"]), 5) * IDLE_POWER_CONSUMPTION
+    estimated_cost_of_task = task_difficulty_duration.get(len(op["task"]["vector"]), len(op["task"]["vector"]) * 0.001) * IDLE_POWER_CONSUMPTION #get previous time to complete, else estimate as 1ms per line in vector
     if internal_value < 0:
         bid_value = estimated_cost_of_task + abs(internal_value)
 
