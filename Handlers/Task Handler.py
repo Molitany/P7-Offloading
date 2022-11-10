@@ -46,10 +46,10 @@ async def establish_client():
             async with connect(f"ws://{host}:{port}") as websocket:
                 while True:
 
-                    offloading_parameters = json_numpy.loads(await websocket.recv())
+                    id, offloading_parameters = json_numpy.loads(await websocket.recv())
                     if offloading_parameters["offloading_type"] == "Auction":
                         if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB":
-                            auction_result = await bid_on_SPSB(offloading_parameters, websocket)
+                            auction_result = await bid_on_SPSB(offloading_parameters, websocket, id)
                     
                         if auction_result["winner"] == True:
                             result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
@@ -77,7 +77,7 @@ async def establish_client():
             await asyncio.sleep(1)
 
 
-async def bid_on_SPSB(offloading_parameters, websocket):
+async def bid_on_SPSB(offloading_parameters, websocket, id):
     global idle_start_time
     global internal_value
     global task_difficulty_costs
@@ -94,7 +94,7 @@ async def bid_on_SPSB(offloading_parameters, websocket):
         bid_value = estimated_cost_of_task + abs(internal_value)
 
     if len(op["task"]["vector"]) < op["max_reward"]:
-        await websocket.send(json_numpy.dumps({"bid": bid_value, 'ws': websocket}))
+        await websocket.send(json_numpy.dumps({"bid": bid_value, 'ws': id}))
 
     return json_numpy.loads(await websocket.recv())
 
