@@ -8,8 +8,6 @@ async def auction_call(offloading_parameters, task, machines_connected, machine)
     #Universal part for all auctions
     offloading_parameters["task"] = task
     offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
-    if offloading_parameters.get("fines") == "Yes": 
-        offloading_parameters["fines"] = random.randrange(1, 6) #change fine calculation too
     
     machines = machines_connected._queue.copy()
     machines.append(machine)
