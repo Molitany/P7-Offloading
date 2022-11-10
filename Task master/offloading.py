@@ -11,6 +11,7 @@ import auction
 
 app = Flask(__name__)
 machines_connected = Queue()
+machine_id = 0
 
 matrix1 = np.random.rand(2, 2)
 matrix2 = np.random.rand(2, 2)
@@ -43,11 +44,15 @@ async def new_connection(websocket):
     Upon a new websocket connection add the machine to the known machines and set it to available\n
     when the connection is disrupted (Timeout, ConnectionClosed, etc.) the machine is removed from the known machines. 
     """
-    await machines_connected.put(websocket)
+    global machine_id
+    await machines_connected.put((machine_id, websocket))
+    machine_id += 1
     try:
         await websocket.wait_closed()
     finally:
-        machines_connected._queue.remove(websocket)
+        for machine in machines_connected._queue:
+            if machine[1] == websocket:
+                machines_connected._queue.remove(machine[0])
 
 
 #Do auction with all machines, its their job to respond or not
