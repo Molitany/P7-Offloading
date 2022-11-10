@@ -102,15 +102,17 @@ async def get_offloading_parameters():
 
     return offloading_parameters
 
-async def handle_communication(pair, offloading_parameters):
+async def safe_handle_communication(pair, offloading_parameters):
+    machine = await machines_connected.get()
+    await handle_communication(pair, offloading_parameters, machine)
+    await machines_connected.put(machine)
+
+async def handle_communication(pair, offloading_parameters, machine):
     while True:
-        try:
-        #Handle the contiuous check of available machines here or earlier
-        #This stuff also need to be done concurrently for every single task that comes in
-            if offloading_parameters["offloading_type"] == "Auction":
-                await auction.auction_call(offloading_parameters, pair, machines_connected)
-        except (ConnectionClosed, asyncio.exceptions.TimeoutError):
-            print(f'a machine disconnected')
+    #Handle the contiuous check of available machines here or earlier
+    #This stuff also need to be done concurrently for every single task that comes in
+        if offloading_parameters["offloading_type"] == "Auction":
+            await auction.auction_call(offloading_parameters, pair, machines_connected, machine)
 
 
 async def handle_server():
@@ -139,7 +141,7 @@ async def safe_send(vector_pairs: list):
     offloading_parameters = await get_offloading_parameters()
     # Create tasks for all the pairs
     for pair in vector_pairs:
-        sub_tasks.update({create_task(handle_communication(pair, offloading_parameters)): pair})
+        sub_tasks.update({create_task(safe_handle_communication(pair, offloading_parameters)): pair})
     while len(sub_tasks) != 0:
         try:
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
@@ -160,7 +162,7 @@ async def safe_send(vector_pairs: list):
                 pairs = list(sub_tasks.copy().values())
                 sub_tasks.clear()
                 for pair in pairs:
-                    sub_tasks.update({create_task(handle_communication(pair, offloading_parameters)): pair})
+                    sub_tasks.update({create_task(safe_handle_communication(pair, offloading_parameters)): pair})
     return results
 
 
