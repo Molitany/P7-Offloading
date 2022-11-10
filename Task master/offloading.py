@@ -104,15 +104,16 @@ async def get_offloading_parameters():
 
 async def safe_handle_communication(pair, offloading_parameters):
     machine = await machines_connected.get()
-    await handle_communication(pair, offloading_parameters, machine)
+    result = await handle_communication(pair, offloading_parameters, machine)
     await machines_connected.put(machine)
+    return result
 
 async def handle_communication(pair, offloading_parameters, machine):
     while True:
     #Handle the contiuous check of available machines here or earlier
     #This stuff also need to be done concurrently for every single task that comes in
         if offloading_parameters["offloading_type"] == "Auction":
-            await auction.auction_call(offloading_parameters, pair, machines_connected, machine)
+            return await auction.auction_call(offloading_parameters, pair, machines_connected, machine)
 
 
 async def handle_server():
