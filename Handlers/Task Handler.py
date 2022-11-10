@@ -9,10 +9,13 @@ import time
 
 internal_value = 0
 idle_start_time = time.time()
-IDLE_POWER_CONSUMPTION = 10
-ACTIVE_POWER_CONSUMPTION = 50
+IDLE_POWER_CONSUMPTION = 1
+ACTIVE_POWER_CONSUMPTION = 5
+task_difficulty_costs = {}
 
 def calc_split_matrix(pair):
+    global task_difficulty_costs
+    global internal_value
     active_start_time = time.time()
 
     """Dot products the pair into the respective cell."""
@@ -20,8 +23,10 @@ def calc_split_matrix(pair):
     dot_products = {"dot_product": np.dot(pair["vector"][0], pair["vector"][1]),
                     "cell": pair["cell"], "completed": True}
 
-    global internal_value
-    internal_value -= (active_start_time - time.time()) * ACTIVE_POWER_CONSUMPTION
+    task_cost = (active_start_time - time.time()) * ACTIVE_POWER_CONSUMPTION
+    task_difficulty_costs[len(pair["vector"])] = task_cost
+
+    internal_value -= task_cost
     return dot_products
 
 
@@ -75,6 +80,7 @@ async def establish_client():
 async def bid_on_SPSB(offloading_parameters, websocket):
     global idle_start_time
     global internal_value
+    global task_difficulty_costs
     #We have the task as offloading_parameters["task"] for difficulty measuring
     # we have deadlines, the task, the frequency, the max reward, and fines
     op = offloading_parameters
@@ -82,8 +88,10 @@ async def bid_on_SPSB(offloading_parameters, websocket):
     internal_value = (idle_start_time - time.time()) * IDLE_POWER_CONSUMPTION
     idle_start_time = time.time()
 
+    #Change the bid to be based on the dynamically estimated cost of the task
+    estimated_cost_of_task = task_difficulty_costs.get(len(op["task"]["vector"]), 5)
     if internal_value < 0:
-        bid_value = op["max_reward"] - random.randrange(1, 4) + abs(internal_value)
+        bid_value = estimated_cost_of_task + abs(internal_value)
 
     if len(op["task"]["vector"]) < op["max_reward"]:
         await websocket.send(json_numpy.dumps({"bid": bid_value, 'ws': websocket}))
