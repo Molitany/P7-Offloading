@@ -27,7 +27,7 @@ async def auction_call(offloading_parameters, task, machines_connected, machine)
 
     #Depending on the type of auction, call different functions
     if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
-        await second_price_sealed_bid(received_values, machine, task, machines_connected)
+        return await second_price_sealed_bid(received_values, machine, task, machines_connected)
 
 
 async def second_price_sealed_bid(received_values, machine, task, machines_connected):
@@ -46,11 +46,9 @@ async def second_price_sealed_bid(received_values, machine, task, machines_conne
     if len(non_winner_sockets) > 1:
         await websockets.broadcast(non_winner_sockets, json.dumps({"winner": False}))
     
-    computation_result = None
     for machine in machines:
         if machine[0] == lowest_value["id"]:
             await machine[1].send(json.dumps({"winner": True, "reward": second_lowest["bid"], "task": task}))
-            computation_result = await asyncio.wait_for(machine[1].recv(), timeout=10)
+            computation_result = json.loads(await asyncio.wait_for(machine[1].recv(), timeout=10))
+            return computation_result
 
-    return computation_result
-    
