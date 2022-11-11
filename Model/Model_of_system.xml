@@ -2,26 +2,35 @@
 <!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
 <nta>
 	<declaration>// Place global declarations here.
-const int QSIZE = 20;
+const int QSIZE = 100;
 const int MACHINES = 5;
+const int TASKS = 10;
+
 typedef int[0,MACHINES-1] id_b;
+typedef int [0,TASKS-1] id_task;
 const int computationPower[MACHINES]= {330, 220, 110, 180,110};
 const int powerConsumption[MACHINES] = {110, 65, 30, 70, 30};
 const int idleConsumption[MACHINES] = {80, 40, 20, 50, 60};
-int numberOfTaskInQueue = 0;
-bool machineBusy[MACHINES];
-int machineBids[MACHINES];
+const int taskComputationReq[TASKS] = {250,260,270,580,390,1100,2110,1420,1130,2140};
+const int taskDeadline[TASKS] = {10,20,40,40,60,80,90,110,140,100};
+
+int globalQueueSizeIndex;
 int machineWonAuction;
 int secondPriceBid;
+int taskUpForAuction;
+int timesDeadlineMissed = 0;
+int numberOfTaskInQueue = 0;
+
+bool machineBusy[MACHINES];
+int machineBids[MACHINES];
+int machineTaskListIndex[MACHINES];
 int assignedTask[MACHINES];
 
+int tasksAssignedMachine[TASKS];
+bool taskListStatus[TASKS];
+int taskList[QSIZE];
 broadcast chan newTaskForAuction, taskFinished, newTaskBought,auctionConcluded;
-typedef struct{
-    int deadLine;
-    int processingUnits;
-}task;
-int taskUpForAuction;
-task taskList[QSIZE];
+chan newTask;
 
 
 
@@ -30,23 +39,30 @@ task taskList[QSIZE];
 
 </declaration>
 	<template>
-		<name>TaskGenerator</name>
+		<name>TaskPicker</name>
 		<declaration>clock time;
 const int taskToCreate = 10;
-int i;
+int i,x;
 int index= 0;
-void createTask(int DL, int PU){
-    taskList[index].deadLine=DL;
-    taskList[index].processingUnits=PU;
-    index++;
-    numberOfTaskInQueue++;
+
+void initializeArray(){
+    for (x=0;x&lt;QSIZE;x++)
+    taskList[x]=-1;
 }</declaration>
 		<location id="id0" x="0" y="-34">
 			<label kind="invariant" x="-10" y="-17">time&lt;5</label>
 		</location>
 		<location id="id1" x="0" y="136">
 		</location>
-		<init ref="id0"/>
+		<location id="id2" x="-221" y="-34">
+			<committed/>
+		</location>
+		<init ref="id2"/>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id0"/>
+			<label kind="assignment" x="-203" y="-34">initializeArray()</label>
+		</transition>
 		<transition>
 			<source ref="id0"/>
 			<target ref="id1"/>
@@ -55,14 +71,68 @@ void createTask(int DL, int PU){
 		<transition>
 			<source ref="id0"/>
 			<target ref="id0"/>
-			<label kind="select" x="59" y="-153">DL : int [50,50],
-PU: int [500,500]</label>
-			<label kind="guard" x="51" y="-93">taskToCreate &gt;i</label>
-			<label kind="assignment" x="51" y="-76">createTask(DL,PU),
-time = 0,
-i++</label>
+			<label kind="guard" x="76" y="-119">taskToCreate&gt;i &amp;&amp;
+time&gt;4</label>
+			<label kind="synchronisation" x="68" y="-136">newTask!</label>
+			<label kind="assignment" x="76" y="-85">time = 0,
+i++,
+numberOfTaskInQueue++</label>
 			<nail x="68" y="-102"/>
 			<nail x="-59" y="-102"/>
+		</transition>
+	</template>
+	<template>
+		<name>Task</name>
+		<parameter>const id_task id </parameter>
+		<declaration>clock time;
+int deadline = taskDeadline[id];
+int computationReq = taskComputationReq[id];
+int timesPicked;
+void taskPicked(){
+    taskList[globalQueueSizeIndex] = id;
+    globalQueueSizeIndex++;
+    timesPicked++;
+}
+</declaration>
+		<location id="id3" x="0" y="25">
+			<name x="17" y="34">Non_existant</name>
+		</location>
+		<location id="id4" x="0" y="-59">
+			<label kind="invariant" x="-42" y="-93">time&lt;=deadline</label>
+		</location>
+		<location id="id5" x="221" y="-59">
+			<name x="178" y="-102">deadline_unsatisfied</name>
+		</location>
+		<init ref="id3"/>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id3"/>
+			<label kind="guard" x="229" y="-34">taskListStatus[id]</label>
+			<label kind="synchronisation" x="229" y="-17">taskFinished?</label>
+			<label kind="assignment" x="229" y="0">taskListStatus[id]=false</label>
+			<nail x="221" y="25"/>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id3"/>
+			<label kind="guard" x="-263" y="-68">taskListStatus[id]</label>
+			<label kind="synchronisation" x="-238" y="-51">taskFinished?</label>
+			<label kind="assignment" x="-297" y="-25">taskListStatus[id] =false</label>
+			<nail x="-144" y="-59"/>
+			<nail x="-144" y="25"/>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id5"/>
+			<label kind="guard" x="76" y="-93">time&gt;=deadline</label>
+			<label kind="assignment" x="59" y="-76">timesDeadlineMissed++</label>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id4"/>
+			<label kind="synchronisation" x="25" y="-34">newTask?</label>
+			<label kind="assignment" x="25" y="-17">time = 0,
+taskPicked()</label>
 		</transition>
 	</template>
 	<template>
@@ -81,6 +151,8 @@ bool allMachineBusy(){
     }
     return true;
 }
+
+
 
 
 void chooseWinner(){
@@ -116,6 +188,9 @@ void chooseWinner(){
     machineWonAuction = index;
     machineBusy[index]=true;
     systemBusy = allMachineBusy(); 
+    machineTaskListIndex[index]=distributorIndex;
+    assignedTask[index] =  taskList[distributorIndex];
+    distributorIndex++;
 }
 
 void resetAution(){
@@ -125,69 +200,72 @@ void resetAution(){
         machineBids[x]=10000;  
     }
 
-}</declaration>
-		<location id="id2" x="68" y="-17">
+}
+
+
+</declaration>
+		<location id="id6" x="68" y="-17">
 			<name x="85" y="-25">idle</name>
 			<label kind="invariant" x="85" y="-8">numberOfTaskInQueue &lt;= 1</label>
 		</location>
-		<location id="id3" x="0" y="-110">
+		<location id="id7" x="0" y="-110">
 			<name x="17" y="-119">working</name>
 			<urgent/>
 		</location>
-		<location id="id4" x="-187" y="-195">
+		<location id="id8" x="-187" y="-195">
 			<name x="-204" y="-229">waiting</name>
 		</location>
-		<location id="id5" x="0" y="-204">
+		<location id="id9" x="0" y="-204">
 			<name x="17" y="-212">auctioning</name>
 			<urgent/>
 		</location>
-		<location id="id6" x="0" y="-297">
+		<location id="id10" x="0" y="-297">
 			<committed/>
 		</location>
-		<init ref="id2"/>
+		<init ref="id6"/>
 		<transition>
-			<source ref="id5"/>
-			<target ref="id6"/>
+			<source ref="id9"/>
+			<target ref="id10"/>
 			<label kind="assignment" x="8" y="-255">chooseWinner()</label>
 		</transition>
 		<transition>
-			<source ref="id3"/>
-			<target ref="id2"/>
+			<source ref="id7"/>
+			<target ref="id6"/>
 			<label kind="guard" x="-119" y="0">numberOfTaskInQueue == 0</label>
 			<nail x="0" y="-17"/>
 			<nail x="0" y="-17"/>
 			<nail x="0" y="-17"/>
 		</transition>
 		<transition>
-			<source ref="id6"/>
-			<target ref="id3"/>
+			<source ref="id10"/>
+			<target ref="id7"/>
 			<label kind="synchronisation" x="-153" y="-263">auctionConcluded!</label>
 			<label kind="assignment" x="-127" y="-246">resetAution()</label>
 			<nail x="-42" y="-204"/>
 			<nail x="-17" y="-144"/>
 		</transition>
 		<transition>
-			<source ref="id3"/>
-			<target ref="id5"/>
+			<source ref="id7"/>
+			<target ref="id9"/>
 			<label kind="guard" x="17" y="-178">!systemBusy &amp;&amp; numberOfTaskInQueue &gt; 0</label>
 			<label kind="synchronisation" x="17" y="-144">newTaskForAuction!</label>
 			<label kind="assignment" x="17" y="-161">numberOfTaskInQueue--</label>
 		</transition>
 		<transition>
-			<source ref="id4"/>
-			<target ref="id3"/>
+			<source ref="id8"/>
+			<target ref="id7"/>
 			<label kind="synchronisation" x="-187" y="-93">taskFinished?</label>
 			<label kind="assignment" x="-187" y="-76">systemBusy = false</label>
 			<nail x="-187" y="-110"/>
 		</transition>
 		<transition>
-			<source ref="id3"/>
-			<target ref="id4"/>
+			<source ref="id7"/>
+			<target ref="id8"/>
 			<label kind="guard" x="-136" y="-195">systemBusy</label>
 		</transition>
 		<transition>
-			<source ref="id2"/>
-			<target ref="id3"/>
+			<source ref="id6"/>
+			<target ref="id7"/>
 			<label kind="guard" x="42" y="-85">numberOfTaskInQueue&gt;0</label>
 		</transition>
 	</template>
@@ -203,79 +281,91 @@ int computationDone;
 bool taskDone;
 void processing(){
     computationDone += localComputationPower;
-    if (computationDone&gt;=taskList[assignedTask[id]].processingUnits){
+    if (computationDone&gt;=taskComputationReq[assignedTask[id]]){
       
         taskDone= true;
+        taskListStatus[assignedTask[id]] = true;
+        
     }
 }
 
 void bidOnAution(){ // midlertidig implementation
-    int timeToComplete = taskList[taskUpForAuction].processingUnits/localComputationPower;
+    int timeToComplete =  taskComputationReq[taskUpForAuction] / localComputationPower;
     int bid = timeToComplete*localPowerConsumption; 
     machineBids[id] = ++bid;
     
+}
+
+void updateTaskQueue(){
+    taskList[machineTaskListIndex[id]]=-1;
+    int i;
+    for (i=0;i&lt;globalQueueSizeIndex;i++){
+
+}
+    
+    
 }</declaration>
-		<location id="id7" x="91" y="33">
+		<location id="id11" x="91" y="33">
 			<name x="68" y="-8">bidding</name>
 			<committed/>
 		</location>
-		<location id="id8" x="-119" y="34">
+		<location id="id12" x="-119" y="34">
 			<name x="-153" y="8">idle</name>
 		</location>
-		<location id="id9" x="0" y="-119">
+		<location id="id13" x="0" y="-119">
 			<name x="17" y="-153">working</name>
 			<label kind="invariant" x="17" y="-136">t&lt;=5</label>
 		</location>
-		<location id="id10" x="-119" y="-119">
+		<location id="id14" x="-119" y="-119">
 			<committed/>
 		</location>
-		<location id="id11" x="246" y="34">
+		<location id="id15" x="246" y="34">
 		</location>
-		<init ref="id8"/>
+		<init ref="id12"/>
 		<transition>
-			<source ref="id11"/>
-			<target ref="id8"/>
+			<source ref="id15"/>
+			<target ref="id12"/>
 			<label kind="guard" x="-101" y="127">machineWonAuction != id</label>
 			<label kind="synchronisation" x="-25" y="136">auctionConcluded?</label>
 			<nail x="246" y="161"/>
 			<nail x="-119" y="161"/>
 		</transition>
 		<transition>
-			<source ref="id11"/>
-			<target ref="id9"/>
-			<label kind="guard" x="153" y="-93">machineWonAuction == id</label>
-			<label kind="synchronisation" x="161" y="-76">auctionConcluded?</label>
-			<label kind="assignment" x="18" y="-42">bidUsed = secondPriceBid</label>
+			<source ref="id15"/>
+			<target ref="id13"/>
+			<label kind="guard" x="170" y="-85">machineWonAuction == id</label>
+			<label kind="synchronisation" x="178" y="-68">auctionConcluded?</label>
+			<label kind="assignment" x="170" y="-42">bidUsed = secondPriceBid</label>
 		</transition>
 		<transition>
-			<source ref="id7"/>
-			<target ref="id11"/>
+			<source ref="id11"/>
+			<target ref="id15"/>
 			<label kind="assignment" x="127" y="42">bidOnAution()</label>
 		</transition>
 		<transition>
-			<source ref="id8"/>
-			<target ref="id7"/>
+			<source ref="id12"/>
+			<target ref="id11"/>
 			<label kind="synchronisation" x="-79" y="33">newTaskForAuction?</label>
 			<label kind="assignment" x="-79" y="50">computationDone = 0,
 taskDone = false,
 t=0</label>
 		</transition>
 		<transition>
-			<source ref="id10"/>
-			<target ref="id9"/>
+			<source ref="id14"/>
+			<target ref="id13"/>
 			<label kind="guard" x="-93" y="-136">!taskDone</label>
 		</transition>
 		<transition>
-			<source ref="id10"/>
-			<target ref="id8"/>
+			<source ref="id14"/>
+			<target ref="id12"/>
 			<label kind="guard" x="-187" y="-68">taskDone</label>
 			<label kind="synchronisation" x="-212" y="-85">taskFinished!</label>
 			<label kind="assignment" x="-280" y="-51">machineBusy[id] = false,
 taskDone = false</label>
 		</transition>
 		<transition>
-			<source ref="id9"/>
-			<target ref="id10"/>
+			<source ref="id13"/>
+			<target ref="id14"/>
 			<label kind="guard" x="-51" y="-280">t&gt;=5</label>
 			<label kind="assignment" x="-51" y="-263">processing(),
 t=0</label>
@@ -288,8 +378,7 @@ t=0</label>
 	<system>// Place template instantiations here.
 
 // List one or more processes to be composed into a system.
-system Distributor, Machine, TaskGenerator;
-    </system>
+system Distributor, Machine, TaskPicker, Task;   </system>
 	<queries>
 		<query>
 			<formula>A[] numberOfTaskInQueue &gt;= 0</formula>
@@ -317,7 +406,11 @@ system Distributor, Machine, TaskGenerator;
 		</query>
 		<query>
 			<formula>E&lt;&gt; numberOfTaskInQueue == 10</formula>
-			<comment>Hvorfor du denne verifier? burde urgent ikke stoppe det. Spørg Florian.</comment>
+			<comment>Hvorfor dur denne verifier? burde urgent ikke stoppe det. Spørg Florian.</comment>
+		</query>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment></comment>
 		</query>
 	</queries>
 </nta>
