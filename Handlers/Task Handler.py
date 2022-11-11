@@ -98,9 +98,9 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
             bid_value += op["task"].get("fine", 0) 
 
     if bid_value < op["max_reward"]:
-        await websocket.send(json_numpy.dumps({"bid": bid_value, 'ws': id}))
+        await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
     else:
-        await websocket.send(json_numpy.dumps({"bid": op["max_reward"], 'ws': id}))
+        await websocket.send(json_numpy.dumps({"bid": op["max_reward"], 'id': id}))
 
     return json_numpy.loads(await websocket.recv())
 

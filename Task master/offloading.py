@@ -72,29 +72,29 @@ async def get_offloading_parameters():
     Auction (default)
     Contract (not implemented)
     First come, first server (FCFS) (not implemented)\n""")
-    offloading_parameters["offloading_type"] = input() or "Auction"
+    offloading_parameters["offloading_type"] = "Auction"
 
     if offloading_parameters["offloading_type"] == "Auction" or offloading_parameters["offloading_type"] == "auction":
         print("""What auction type to use?
         Second Price Sealed Bid (SPSB) (default)
         First Price (not implemented)\n""")
-        offloading_parameters["auction_type"] = input() or "SPSB"
+        offloading_parameters["auction_type"] = "SPSB"
 
     print("""What frequency of tasks?
     Slow (1/s)
     Medium (5/s) (default)
     Fast (10/s)\n""")
-    offloading_parameters["task_frequency"] = input() or "Medium"
+    offloading_parameters["task_frequency"] = "Medium"
 
     print("""Do the tasks have deadlines?
     Yes
     No (Default)\n""")
-    offloading_parameters["deadlines"] = input() or "No"
+    offloading_parameters["deadlines"] = "No"
 
     print("""Are there fines for abandoning a job or going over a possible deadline?
     No (default)
     Yes \n""")
-    offloading_parameters["fines"] = input() or "No"
+    offloading_parameters["fines"] = "No"
 
     #Simply add more cases to each of these or more categories
     #Handling of types is later and on the machines
