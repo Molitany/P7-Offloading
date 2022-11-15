@@ -7,8 +7,11 @@ from flask import Flask, request
 import websockets
 import numpy as np
 import json_numpy
+import json
+import random
 from websockets.exceptions import ConnectionClosed
 import auction
+import traceback
 
 app = Flask(__name__)
 machines_connected = Queue()
@@ -108,6 +111,34 @@ async def get_offloading_parameters():
 
     return offloading_parameters
 
+
+async def auction_call(offloading_parameters, task, machines_connected, auction_running: asyncio.Future):
+    #Universal part for all auctions
+    offloading_parameters["task"] = task
+    offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
+    
+    websocketList = [w[1] for w in machines_connected]
+    for machine in machines_connected:
+        await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
+
+    receive_tasks = []
+    for connection in websocketList:
+        receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
+        
+    print(f'recv 1: websockets {websocketList}')
+    finished, unfinished = await asyncio.wait(receive_tasks, timeout=3) #Wait returns the finished and unfinished tasks in the list after the timeout
+
+    auction_running.set_result(False)
+
+    received_values = []
+    for finished_task in finished:
+        received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
+
+    #Depending on the type of auction, call different functions
+    if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
+        return await auction.second_price_sealed_bid(received_values, machine, task, machines_connected)
+
+
 async def safe_handle_communication(pair, offloading_parameters):
     global auction_running
     await auction_running
@@ -115,7 +146,6 @@ async def safe_handle_communication(pair, offloading_parameters):
     auction_running = asyncio.Future()
     result = await handle_communication(pair, offloading_parameters, machines_connected._queue.copy()+deque([machine]))
     await machines_connected.put(machine)
-    auction_running.set_result(False)
     return result
 
 async def handle_communication(pair, offloading_parameters, machines):
@@ -123,7 +153,7 @@ async def handle_communication(pair, offloading_parameters, machines):
     #Handle the contiuous check of available machines here or earlier
     #This stuff also need to be done concurrently for every single task that comes in
         if offloading_parameters["offloading_type"] == "Auction":
-            return await auction.auction_call(offloading_parameters, pair, machines, auction_running)
+            return await auction_call(offloading_parameters, pair, machines, auction_running)
 
 
 async def handle_server():
@@ -160,7 +190,7 @@ async def safe_send(vector_pairs: list):
         try:
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
             # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await wait(sub_tasks.keys(), timeout=7, return_when=FIRST_EXCEPTION)
+            done, pending = await wait(sub_tasks.keys(), timeout=60, return_when=FIRST_EXCEPTION)
             for task in done:
                 # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
                 if task.exception() is None:
@@ -168,7 +198,7 @@ async def safe_send(vector_pairs: list):
                     sub_tasks.pop(task)
                 else: raise task.exception()
         except Exception as e:
-            print(f'offloading.py:165 {e}')
+            traceback.print_exc()
         finally:
             # if we are not done then we cancel all of the tasks, as they have been assigned to a machine already, 
             # and create the missing tasks again and try sending the missing pairs again. 
@@ -178,6 +208,7 @@ async def safe_send(vector_pairs: list):
                 sub_tasks.clear()
                 for pair in pairs:
                     sub_tasks.update({create_task(safe_handle_communication(pair, offloading_parameters)): pair})
+                    await asyncio.sleep(.5)
     return results
 
 
