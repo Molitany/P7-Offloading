@@ -2,6 +2,7 @@ from asyncio import sleep, run, Queue, create_task, wait, FIRST_EXCEPTION
 import asyncio
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
 from collections import deque
+from threading import Thread
 from flask import Flask, request
 import websockets
 import numpy as np
@@ -12,7 +13,7 @@ import auction
 app = Flask(__name__)
 machines_connected = Queue()
 machine_id = 0
-
+auction_running: asyncio.Future
 matrix1 = np.random.rand(2, 2)
 matrix2 = np.random.rand(2, 2)
 # the task queue is a list of pairs where both elements are matrices
@@ -52,7 +53,7 @@ async def new_connection(websocket):
     finally:
         for machine in machines_connected._queue:
             if machine[1] == websocket:
-                machines_connected._queue.remove(machine[0])
+                machines_connected._queue.remove(machine)
 
 
 #Do auction with all machines, its their job to respond or not
@@ -95,7 +96,6 @@ async def get_offloading_parameters():
     No (default)
     Yes \n""")
     offloading_parameters["fines"] = "No"
-
     #Simply add more cases to each of these or more categories
     #Handling of types is later and on the machines
     #Stuff likes this can also be split into seperate functions or its own file if needed
@@ -103,17 +103,21 @@ async def get_offloading_parameters():
     return offloading_parameters
 
 async def safe_handle_communication(pair, offloading_parameters):
+    global auction_running
+    await auction_running
     machine = await machines_connected.get()
-    result = await handle_communication(pair, offloading_parameters, machine)
+    auction_running = asyncio.Future()
+    result = await handle_communication(pair, offloading_parameters, machines_connected._queue.copy()+deque([machine]))
     await machines_connected.put(machine)
+    auction_running.set_result(False)
     return result
 
-async def handle_communication(pair, offloading_parameters, machine):
+async def handle_communication(pair, offloading_parameters, machines):
     while True:
     #Handle the contiuous check of available machines here or earlier
     #This stuff also need to be done concurrently for every single task that comes in
         if offloading_parameters["offloading_type"] == "Auction":
-            return await auction.auction_call(offloading_parameters, pair, machines_connected, machine)
+            return await auction.auction_call(offloading_parameters, pair, machines, auction_running)
 
 
 async def handle_server():
@@ -135,9 +139,12 @@ async def handle_server():
 
 
 async def safe_send(vector_pairs: list):
+    global auction_running
     """Split vector pairs and safely send the pairs to machines."""
     sub_tasks = {}
     results = []
+    auction_running = asyncio.Future()
+    auction_running.set_result(False)
     #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
     offloading_parameters = await get_offloading_parameters()
     # Create tasks for all the pairs
@@ -147,14 +154,15 @@ async def safe_send(vector_pairs: list):
         try:
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
             # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await wait(sub_tasks.keys(), timeout=30, return_when=FIRST_EXCEPTION)
+            done, pending = await wait(sub_tasks.keys(), timeout=7, return_when=FIRST_EXCEPTION)
             for task in done:
                 # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
                 if task.exception() is None:
                     results.append(task.result())
                     sub_tasks.pop(task)
+                else: raise task.exception()
         except Exception as e:
-            print(e)
+            print(f'offloading.py:165 {e}')
         finally:
             # if we are not done then we cancel all of the tasks, as they have been assigned to a machine already, 
             # and create the missing tasks again and try sending the missing pairs again. 
