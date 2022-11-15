@@ -18,7 +18,7 @@ def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadl
             "mat1" : mat1,
             "mat2" : mat2,
             "deadlineSeconds" : deadlineSeconds,
-            "Reward": (max_deadline - deadlineSeconds) * Average(shapeNumbers)
+            "max_reward": (max_deadline - deadlineSeconds) * Average(shapeNumbers)
         }
         matrix_array.append(pair)
     return matrix_array
