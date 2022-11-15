@@ -70,9 +70,9 @@ async def get_offloading_parameters():
     offloading_parameters = {}
 
     print("""What type of offloading to use?
-    Auction (default)
+    Auction (default) 
     Contract (not implemented)
-    First come, first server (FCFS) (not implemented)\n""")
+    First come, first server (FCFS) (not implemented)\n""") #We could just define our 4 types here, normal, with fines, with max_reward, both and save some enter
     offloading_parameters["offloading_type"] = "Auction"
 
     if offloading_parameters["offloading_type"] == "Auction" or offloading_parameters["offloading_type"] == "auction":
@@ -88,14 +88,20 @@ async def get_offloading_parameters():
     offloading_parameters["task_frequency"] = "Medium"
 
     print("""Do the tasks have deadlines?
-    Yes
-    No (Default)\n""")
+    No (Default)
+    Yes \n""")
     offloading_parameters["deadlines"] = "No"
 
     print("""Are there fines for abandoning a job or going over a possible deadline?
     No (default)
     Yes \n""")
     offloading_parameters["fines"] = "No"
+
+    print("""Is there a max reward for the tasks?
+    No (Default) 
+    Yes \n""")
+    offloading_parameters["max_reward"] = "No"
+
     #Simply add more cases to each of these or more categories
     #Handling of types is later and on the machines
     #Stuff likes this can also be split into seperate functions or its own file if needed
