@@ -97,10 +97,11 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
         if op["task"].get("deadline") < task_difficulty_duration[len(op["task"]["vector"])]:
             bid_value += op["task"].get("fine", 0) 
 
-    if bid_value < op["max_reward"]:
-        await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
-    else:
-        await websocket.send(json_numpy.dumps({"bid": op["max_reward"], 'id': id}))
+    if op.get("map_reward") == "Yes":
+        if bid_value < op["task"].get("max_reward"):
+            await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
+        else:
+            await websocket.send(json_numpy.dumps({"bid": op["max_reward"], 'id': id}))
 
     return json_numpy.loads(await websocket.recv())
 
