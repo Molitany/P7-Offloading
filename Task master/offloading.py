@@ -115,7 +115,7 @@ async def get_offloading_parameters():
 
 
 async def auction_call(offloading_parameters, task, machines_connected, auction_running: asyncio.Future):
-    global prev_winner
+    global prev_winner, task_id
     #Universal part for all auctions
     offloading_parameters["task"] = task
     offloading_parameters["task_id"] = task_id
@@ -133,6 +133,7 @@ async def auction_call(offloading_parameters, task, machines_connected, auction_
     finished, unfinished = await asyncio.wait(receive_tasks, timeout=3) #Wait returns the finished and unfinished tasks in the list after the timeout
 
     auction_running.set_result(False)
+    task_id += 1
     
     received_values = []
     try:
@@ -143,18 +144,17 @@ async def auction_call(offloading_parameters, task, machines_connected, auction_
         raise e
     #Depending on the type of auction, call different functions
     if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
-        prev_winner, result = await auction.second_price_sealed_bid(received_values, machine, task, machines_connected)
+        prev_winner, result = await auction.second_price_sealed_bid(received_values, machines_connected, task)
         return result
 
 
 async def safe_handle_communication(pair, offloading_parameters):
-    global auction_running, task_id
+    global auction_running
     await auction_running
     machine = await machines_connected.get()
     auction_running = asyncio.Future()
     result = await handle_communication(pair, offloading_parameters, machines_connected._queue.copy()+deque([machine]))
     await machines_connected.put(machine)
-    task_id += 1
     return result
 
 async def handle_communication(pair, offloading_parameters, machines):
@@ -194,11 +194,11 @@ async def safe_send(vector_pairs: list):
     # Create tasks for all the pairs
     for pair in vector_pairs:
         sub_tasks.update({create_task(safe_handle_communication(pair, offloading_parameters)): pair})
-    while len(sub_tasks) != 0:
+    while sub_tasks:
         try:
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
             # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await wait(sub_tasks.keys(), timeout=7)
+            done, pending = await wait(sub_tasks.keys(), timeout=15)
             for task in done:
                 # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
                 if task.exception() is None:

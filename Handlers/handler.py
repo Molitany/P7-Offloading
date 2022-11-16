@@ -7,6 +7,12 @@ from websockets.exceptions import ConnectionClosed, InvalidMessage
 import random
 import time
 
+CRED    = '\33[31m'
+CGREEN  = '\33[32m'
+CBLUE   = '\33[34m'
+CGREENHIGH  = '\33[92m'
+CBLUEHIGH   = '\33[94m'
+
 internal_value = 0
 idle_start_time = time.time()
 IDLE_POWER_CONSUMPTION = 1
@@ -45,21 +51,21 @@ async def establish_client():
         try:
             async with connect(f"ws://{host}:{port}") as websocket:
                 while True:
-                    print(f'start receiving auction...')
+                    print(f'{CBLUE}start receiving auction...')
                     id, offloading_parameters = json_numpy.loads(await websocket.recv())
-                    print(f'finished receiving {id}:{offloading_parameters}')
+                    print(f'{CBLUEHIGH}finished receiving {id}:{offloading_parameters}')
                     if offloading_parameters["offloading_type"] == "Auction":
                         if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB":
                             auction_result = await bid_on_SPSB(offloading_parameters, websocket, id)
-                            print(f'finished receiving {auction_result}')
+                            print(f'{CBLUEHIGH}finished receiving {auction_result}')
                         if isinstance(auction_result, dict) and auction_result["winner"] == True:
                             result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
                             #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
                             #This does require far better estimation of whether auctions are worth joining
-                            print(f'sending result {result}')
+                            print(f'{CGREEN}sending result {result}')
                             if result["completed"] == True:
                                 await websocket.send(json_numpy.dumps(result))
-                                print(f'finished sending result')
+                                print(f'{CGREENHIGH}finished sending result')
                                 global internal_value
                                 internal_value += auction_result["reward"]
                                 global idle_start_time
@@ -67,16 +73,16 @@ async def establish_client():
 
 
         except ConnectionRefusedError:
-            print('Connection refused')
+            print(f'{CRED}Connection refused')
             await asyncio.sleep(1)
         except ConnectionClosed:
-            print('Connection closed')
+            print(f'{CRED}Connection closed')
             await asyncio.sleep(1)
         except asyncio.exceptions.TimeoutError:
-            print('Connection timed out')
+            print(f'{CRED}Connection timed out')
             await asyncio.sleep(1)
         except InvalidMessage:
-            print('Invalid Message')
+            print(f'{CRED}Invalid Message')
             await asyncio.sleep(1)
         except KeyboardInterrupt:
             pass
@@ -102,7 +108,7 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
         if op["task"].get("deadline") < task_difficulty_duration[len(op["task"]["vector"])]:
             bid_value += op["task"].get("fine", 0) 
 
-    print(f'start sending {bid_value}:{id}...')
+    print(f'{CGREEN}start sending {bid_value}:{id}...')
     if op.get("map_reward") == "Yes":
         if bid_value < op["task"].get("max_reward"):
             await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
@@ -110,8 +116,8 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
             await websocket.send(json_numpy.dumps({"bid": op["max_reward"], 'id': id}))
     else:
         await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
-    print(f'finished sending')
-    print(f'start receiving result...')
+    print(f'{CGREENHIGH}finished sending')
+    print(f'{CBLUE}start receiving result...')
     return json_numpy.loads(await websocket.recv())
 
     
