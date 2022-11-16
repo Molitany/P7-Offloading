@@ -20,6 +20,7 @@ int secondPriceBid;
 int taskUpForAuction;
 int timesDeadlineMissed = 0;
 int numberOfTaskInQueue = 0;
+int distributorIndex =  0;
 
 bool machineBusy[MACHINES];
 int machineBids[MACHINES];
@@ -40,17 +41,18 @@ chan newTask;
 </declaration>
 	<template>
 		<name>TaskPicker</name>
-		<declaration>clock time;
+		<declaration>// in the loop remove or add i++ if you want system to run forever or not
+clock time;
 const int taskToCreate = 10;
 int i,x;
 int index= 0;
-
+//the tasklist is a queue of task id and the first one is 0 so this function ensures that the taskList has -1 for unused spaces. If help spotting errors if an array[-1] is ever accessed
 void initializeArray(){
     for (x=0;x&lt;QSIZE;x++)
     taskList[x]=-1;
 }</declaration>
 		<location id="id0" x="0" y="-34">
-			<label kind="invariant" x="-10" y="-17">time&lt;5</label>
+			<label kind="invariant" x="-10" y="-17">time&lt;=5</label>
 		</location>
 		<location id="id1" x="0" y="136">
 		</location>
@@ -75,7 +77,6 @@ void initializeArray(){
 time&gt;4</label>
 			<label kind="synchronisation" x="68" y="-136">newTask!</label>
 			<label kind="assignment" x="76" y="-85">time = 0,
-i++,
 numberOfTaskInQueue++</label>
 			<nail x="68" y="-102"/>
 			<nail x="-59" y="-102"/>
@@ -84,7 +85,8 @@ numberOfTaskInQueue++</label>
 	<template>
 		<name>Task</name>
 		<parameter>const id_task id </parameter>
-		<declaration>clock time;
+		<declaration>//consider adding a local timesDeadlineUnsatisfied.
+clock time;
 int deadline = taskDeadline[id];
 int computationReq = taskComputationReq[id];
 int timesPicked;
@@ -138,11 +140,13 @@ taskPicked()</label>
 	<template>
 		<name x="5" y="5">Distributor</name>
 		<declaration>// Place local declarations here.
-int distributorIndex =  0;
+
 int i,y,index;
 
 bool systemBusy; 
 clock t;
+
+//checks if all machines is busy if it is systemBusy is set to true(down in chooseWinner) and the distributor goes to the waiting state
 bool allMachineBusy(){
     for (y =0; y&lt;MACHINES;++y){
         if(!machineBusy[y]){
@@ -184,7 +188,7 @@ void chooseWinner(){
         secondPriceBid = machineBids[index];
         index = lowestBid;
     }
-
+    //The winner with the lowest price uses the second places bid. The winning machine gets an index(distributorIndex) for where in the taskList it's task is, and the machines assgined task becomes the task. afterwards the distributor is incremented for the next element in the task queue
     machineWonAuction = index;
     machineBusy[index]=true;
     systemBusy = allMachineBusy(); 
@@ -192,7 +196,6 @@ void chooseWinner(){
     assignedTask[index] =  taskList[distributorIndex];
     distributorIndex++;
 }
-
 void resetAution(){
     int x; 
     
@@ -231,7 +234,7 @@ void resetAution(){
 		<transition>
 			<source ref="id7"/>
 			<target ref="id6"/>
-			<label kind="guard" x="-119" y="0">numberOfTaskInQueue == 0</label>
+			<label kind="guard" x="-161" y="17">numberOfTaskInQueue == 0 &amp;&amp; !systemBusy</label>
 			<nail x="0" y="-17"/>
 			<nail x="0" y="-17"/>
 			<nail x="0" y="-17"/>
@@ -279,6 +282,7 @@ int bidUsed;
 clock t;
 int computationDone;
 bool taskDone;
+//simple function to simulate the machine working on the task
 void processing(){
     computationDone += localComputationPower;
     if (computationDone&gt;=taskComputationReq[assignedTask[id]]){
@@ -288,22 +292,32 @@ void processing(){
         
     }
 }
-
-void bidOnAution(){ // midlertidig implementation
+// tempoary implementation.
+void bidOnAution(){ 
     int timeToComplete =  taskComputationReq[taskUpForAuction] / localComputationPower;
     int bid = timeToComplete*localPowerConsumption; 
     machineBids[id] = ++bid;
     
 }
-
+//remove the finished task from the tasklist and copy all the elements on the right of the index one spot left.
 void updateTaskQueue(){
-    taskList[machineTaskListIndex[id]]=-1;
     int i;
-    for (i=0;i&lt;globalQueueSizeIndex;i++){
+    int temp;
+    for (i=machineTaskListIndex[id];i&lt;globalQueueSizeIndex;i++){
+        taskList[i]=taskList[i+1];
+    }
+    //if there exist a number in the machineTaskListIndex that is higher than the removed spot(ie on the right of the finished task), then it needs to be decremented by one because of the previous forloop moving them.
+    temp= machineTaskListIndex[id];
+    for(i=0;i&lt;MACHINES;i++){
+        if(temp&lt;machineTaskListIndex[i]){
+            machineTaskListIndex[i]-=1;
+        }
 
-}
-    
-    
+    }
+    //unsure if globalQueueSizeIndex and distributor should be the same 
+    machineTaskListIndex[id]=-1;
+    globalQueueSizeIndex--;
+    distributorIndex--;
 }</declaration>
 		<location id="id11" x="91" y="33">
 			<name x="68" y="-8">bidding</name>
@@ -361,7 +375,8 @@ t=0</label>
 			<label kind="guard" x="-187" y="-68">taskDone</label>
 			<label kind="synchronisation" x="-212" y="-85">taskFinished!</label>
 			<label kind="assignment" x="-280" y="-51">machineBusy[id] = false,
-taskDone = false</label>
+taskDone = false,
+updateTaskQueue()</label>
 		</transition>
 		<transition>
 			<source ref="id13"/>
