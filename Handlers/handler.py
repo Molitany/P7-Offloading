@@ -45,7 +45,7 @@ async def establish_client():
         try:
             async with connect(f"ws://{host}:{port}") as websocket:
                 while True:
-                    print(f'start receiving...')
+                    print(f'start receiving auction...')
                     id, offloading_parameters = json_numpy.loads(await websocket.recv())
                     print(f'finished receiving {id}:{offloading_parameters}')
                     if offloading_parameters["offloading_type"] == "Auction":
@@ -109,7 +109,7 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
     else:
         await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
     print(f'finished sending')
-    print(f'finished receiving...')
+    print(f'start receiving result...')
     return json_numpy.loads(await websocket.recv())
 
     

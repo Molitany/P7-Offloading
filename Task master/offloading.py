@@ -117,11 +117,11 @@ async def auction_call(offloading_parameters, task, machines_connected, auction_
     offloading_parameters["task"] = task
     offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
     
-    websocketList = [w[1] for w in machines_connected]
     for machine in machines_connected:
         await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
 
     receive_tasks = []
+    websocketList = [w[1] for w in machines_connected]
     for connection in websocketList:
         receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
         
