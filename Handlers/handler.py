@@ -56,8 +56,10 @@ async def establish_client():
                             result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
                             #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
                             #This does require far better estimation of whether auctions are worth joining
+                            print(f'sending result {result}')
                             if result["completed"] == True:
                                 await websocket.send(json_numpy.dumps(result))
+                                print(f'finished sending result')
                                 global internal_value
                                 internal_value += auction_result["reward"]
                                 global idle_start_time

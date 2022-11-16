@@ -20,10 +20,10 @@ async def second_price_sealed_bid(received_values, machine, task, machines_conne
                 if len(non_winner_sockets) > 0:
                     websockets.broadcast(non_winner_sockets, json.dumps({"winner": False}))
                 await winner[1].send(json.dumps({"winner": True, "reward": second_lowest["bid"], "task": task}))
-                return json.loads(await asyncio.wait_for(winner[1].recv(), timeout=3))
+                return (winner, json.loads(await asyncio.wait_for(winner[1].recv(), timeout=3)))
     else:
         for machine in machines_connected:
             if machine[0] == sorted_values[0].get('id'):
                 winner = machine
                 await winner[1].send(json.dumps({"winner": True, "reward": sorted_values[0]['bid'], "task": task}))
-                return json.loads(await asyncio.wait_for(winner[1].recv(), timeout=3))
+                return (winner, json.loads(await asyncio.wait_for(winner[1].recv(), timeout=3)))

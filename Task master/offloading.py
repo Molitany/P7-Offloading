@@ -21,6 +21,8 @@ matrix1 = np.random.rand(2, 2)
 matrix2 = np.random.rand(2, 2)
 # the task queue is a list of pairs where both elements are matrices
 task_queue = deque([(matrix1, matrix2)])
+task_id = 0
+prev_winner = None
 
 def split_matrix(a, b):
     """Split the matrix into vector pairs and the specific cell to be multiplied into."""
@@ -113,8 +115,10 @@ async def get_offloading_parameters():
 
 
 async def auction_call(offloading_parameters, task, machines_connected, auction_running: asyncio.Future):
+    global prev_winner
     #Universal part for all auctions
     offloading_parameters["task"] = task
+    offloading_parameters["task_id"] = task_id
     offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
     
     for machine in machines_connected:
@@ -125,27 +129,32 @@ async def auction_call(offloading_parameters, task, machines_connected, auction_
     for connection in websocketList:
         receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
         
-    print(f'recv 1: websockets {websocketList}')
+    print(f'recv 1... machines: {machines_connected}, task: {task_id}')
     finished, unfinished = await asyncio.wait(receive_tasks, timeout=3) #Wait returns the finished and unfinished tasks in the list after the timeout
 
     auction_running.set_result(False)
-
+    
     received_values = []
-    for finished_task in finished:
-        received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
-
+    try:
+        for finished_task in finished:
+            received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
+    except Exception as e:
+        print(prev_winner)
+        raise e
     #Depending on the type of auction, call different functions
     if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
-        return await auction.second_price_sealed_bid(received_values, machine, task, machines_connected)
+        prev_winner, result = await auction.second_price_sealed_bid(received_values, machine, task, machines_connected)
+        return result
 
 
 async def safe_handle_communication(pair, offloading_parameters):
-    global auction_running
+    global auction_running, task_id
     await auction_running
     machine = await machines_connected.get()
     auction_running = asyncio.Future()
     result = await handle_communication(pair, offloading_parameters, machines_connected._queue.copy()+deque([machine]))
     await machines_connected.put(machine)
+    task_id += 1
     return result
 
 async def handle_communication(pair, offloading_parameters, machines):
@@ -171,7 +180,7 @@ async def handle_server():
             print(f'we got: {dot_product_array}\n should be: {np.matmul(matrix1, matrix2)}\n'
                   f'equal: {dot_product_array == np.matmul(matrix1, matrix2)}')
             print(f'Clients: {machines_connected.qsize()}')
-            task_queue.append((matrix1, matrix2))
+            task_queue.append((np.random.rand(2, 2), np.random.rand(2, 2)))
 
 async def safe_send(vector_pairs: list):
     global auction_running
@@ -189,7 +198,7 @@ async def safe_send(vector_pairs: list):
         try:
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
             # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await wait(sub_tasks.keys(), timeout=7, return_when=FIRST_EXCEPTION)
+            done, pending = await wait(sub_tasks.keys(), timeout=7)
             for task in done:
                 # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
                 if task.exception() is None:
@@ -201,7 +210,7 @@ async def safe_send(vector_pairs: list):
         finally:
             # if we are not done then we cancel all of the tasks, as they have been assigned to a machine already, 
             # and create the missing tasks again and try sending the missing pairs again. 
-            if sub_tasks != 0:
+            if sub_tasks:
                 map(lambda sub_task: sub_task.cancel(), sub_tasks.keys())
                 pairs = list(sub_tasks.copy().values())
                 sub_tasks.clear()
