@@ -55,8 +55,8 @@ async def establish_client():
                     id, offloading_parameters = json_numpy.loads(await websocket.recv())
                     print(f'{CBLUEHIGH}finished receiving {id}:{offloading_parameters}')
                     if offloading_parameters["offloading_type"] == "Auction":
-                        if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB":
-                            auction_result = await bid_on_SPSB(offloading_parameters, websocket, id)
+                        if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
+                            auction_result = await bid_truthfully(offloading_parameters, websocket, id)
                             print(f'{CBLUEHIGH}finished receiving {auction_result}')
                         if isinstance(auction_result, dict) and auction_result["winner"] == True:
                             result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
@@ -88,7 +88,7 @@ async def establish_client():
             pass
 
 
-async def bid_on_SPSB(offloading_parameters, websocket, id):
+async def bid_truthfully(offloading_parameters, websocket, id):
     global idle_start_time
     global internal_value
     global task_difficulty_duration
@@ -119,7 +119,8 @@ async def bid_on_SPSB(offloading_parameters, websocket, id):
     print(f'{CGREENHIGH}finished sending')
     print(f'{CBLUE}start receiving result...')
     return json_numpy.loads(await websocket.recv())
+ 
 
-    
+
 if __name__ == '__main__':
     asyncio.run(establish_client())

@@ -83,7 +83,7 @@ async def get_offloading_parameters():
     if offloading_parameters["offloading_type"] == "Auction" or offloading_parameters["offloading_type"] == "auction":
         print("""What auction type to use?
         Second Price Sealed Bid (SPSB) (default)
-        First Price (not implemented)\n""")
+        First Price Sealed Bid (FPSB)\n""")
         offloading_parameters["auction_type"] = "SPSB"
 
     print("""What frequency of tasks?
@@ -144,7 +144,10 @@ async def auction_call(offloading_parameters, task, machines_connected, auction_
         raise e
     #Depending on the type of auction, call different functions
     if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
-        prev_winner, result = await auction.second_price_sealed_bid(received_values, machines_connected, task)
+        prev_winner, result = await auction.sealed_bid(received_values, machines_connected, task, 2)
+        return result
+    elif offloading_parameters.get('auction_type') == "FPSB" or offloading_parameters.get('auction_type') == "First Price Sealed Bid":
+        prev_winner, result = await auction.sealed_bid(received_values, machines_connected, task, 1)
         return result
 
 
