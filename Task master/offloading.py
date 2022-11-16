@@ -159,7 +159,7 @@ async def handle_communication(pair, offloading_parameters, machines):
 async def handle_server():
     """Has the server "run in the background" for task offloading to the machines connected."""
     while True:
-        await sleep(0.1)
+        await sleep(0.01)
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
         if len(task_queue) != 0 and not machines_connected.empty():
             task = task_queue.popleft()
@@ -172,7 +172,6 @@ async def handle_server():
                   f'equal: {dot_product_array == np.matmul(matrix1, matrix2)}')
             print(f'Clients: {machines_connected.qsize()}')
             task_queue.append((matrix1, matrix2))
-
 
 async def safe_send(vector_pairs: list):
     global auction_running
@@ -190,7 +189,7 @@ async def safe_send(vector_pairs: list):
         try:
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
             # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await wait(sub_tasks.keys(), timeout=60, return_when=FIRST_EXCEPTION)
+            done, pending = await wait(sub_tasks.keys(), timeout=7, return_when=FIRST_EXCEPTION)
             for task in done:
                 # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
                 if task.exception() is None:
@@ -208,7 +207,7 @@ async def safe_send(vector_pairs: list):
                 sub_tasks.clear()
                 for pair in pairs:
                     sub_tasks.update({create_task(safe_handle_communication(pair, offloading_parameters)): pair})
-                    await asyncio.sleep(.5)
+                    await asyncio.sleep(1)
     return results
 
 
