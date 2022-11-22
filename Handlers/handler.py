@@ -64,13 +64,12 @@ async def establish_client():
                             #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
                             #This does require far better estimation of whether auctions are worth joining
                             print(f'{CGREEN}sending result {result}')
-                            if result["completed"] == True:
-                                await websocket.send(json_numpy.dumps(result))
-                                print(f'{CGREENHIGH}finished sending result')
-                                global internal_value
-                                internal_value += auction_result["reward"]
-                                global idle_start_time
-                                idle_start_time = time.time()
+                            await websocket.send(json_numpy.dumps(result))
+                            print(f'{CGREENHIGH}finished sending result')
+                            global internal_value
+                            internal_value += auction_result["reward"]
+                            global idle_start_time
+                            idle_start_time = time.time()
 
 
         except ConnectionRefusedError:
