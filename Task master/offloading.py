@@ -217,7 +217,7 @@ async def sealed_bid(received_values, task, price_selector):
             winner = machines[0]
             machines.remove(winner)
             try:
-                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": task}))
+                await winner[1].send(json_numpy.dumps({"winner": True, "reward": reward_value, "task": task}))
                 auction_running.set_result(False)
                 result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=5))
             except:

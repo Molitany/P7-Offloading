@@ -19,7 +19,7 @@ IDLE_POWER_CONSUMPTION = 1
 ACTIVE_POWER_CONSUMPTION = 5
 task_difficulty_duration = {}
 
-def calc_split_matrix(matrices, max_shape_number):
+def calc_split_matrix(matrices):
     global task_difficulty_duration
     global internal_value
     active_start_time = time.time()
@@ -30,7 +30,7 @@ def calc_split_matrix(matrices, max_shape_number):
     result = np.matmul(matrix1, matrix2)
 
     task_duration = (active_start_time - time.time())
-    task_difficulty_duration[max_shape_number] = task_duration
+    task_difficulty_duration['max_shape_number'] = task_duration
 
     internal_value -= task_duration
     return result
@@ -59,7 +59,7 @@ async def establish_client():
                             auction_result = await bid_truthfully(offloading_parameters, websocket, id)
                             print(f'{CBLUEHIGH}finished receiving {auction_result}')
                         if isinstance(auction_result, dict) and auction_result["winner"] == True:
-                            result = calc_split_matrix(auction_result["task"], offloading_parameters['max_shape_number']) #Interrupt here for continuous check for new auctions and cancelling current auction
+                            result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
                             #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
                             #This does require far better estimation of whether auctions are worth joining
                             print(f'{CGREEN}sending result {result}')
