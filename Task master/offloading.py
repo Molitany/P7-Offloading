@@ -10,12 +10,54 @@ import json_numpy
 import json
 import random
 from websockets.exceptions import ConnectionClosed
+from websockets.legacy.server import WebSocketServerProtocol
 import auction
 import traceback
 
+class MachineQueue():
+    def __init__(self) -> None:
+        self.connected: deque[tuple[int,WebSocketServerProtocol]] = deque()
+        self.any_connection = asyncio.Future()
+        self.id = 0
+    
+    def remove(self, element) -> None:
+        self.connected.remove(element)
+        if self.any_connection.done() and not self.connected:
+            self.any_connection = asyncio.Future()
+    
+    def remove_socket(self,websocket) -> None:
+        for machine in self.connected.copy():
+            if machine[1] == websocket:
+                self.remove(machine)
+
+    def put(self, element) -> None:
+        if (isinstance(element, tuple)):
+            self.connected.append(element)
+        else:
+            self.connected.append((self.id, element))
+            self.id += 1
+
+        amount_elements = len(self.connected)
+        if amount_elements > 0 and not self.any_connection.done():
+            self.any_connection.set_result(None)
+
+    def empty(self) -> bool:
+        return not self.connected
+
+    def __iter__(self):
+        return self.connected.__iter__()
+
+    def __len__(self):
+        return self.connected.__len__()
+
+    def __str__(self) -> str:
+        return self.connected.__str__()
+
+    def __getitem__(self, item):
+        return self.connected[item]
+
 app = Flask(__name__)
-machines_connected = Queue()
-machine_id = 0
+machines: MachineQueue
 auction_running: asyncio.Future
 matrix1 = np.random.rand(2, 2)
 matrix2 = np.random.rand(2, 2)
@@ -50,15 +92,13 @@ async def new_connection(websocket):
     Upon a new websocket connection add the machine to the known machines and set it to available\n
     when the connection is disrupted (Timeout, ConnectionClosed, etc.) the machine is removed from the known machines. 
     """
-    global machine_id
-    await machines_connected.put((machine_id, websocket))
-    machine_id += 1
+    global machines
+    machines.put(websocket)
     try:
         await websocket.wait_closed()
     finally:
-        for machine in machines_connected._queue:
-            if machine[1] == websocket:
-                machines_connected._queue.remove(machine)
+        machines.remove_socket(websocket)
+
 
 
 #Do auction with all machines, its their job to respond or not
@@ -114,58 +154,93 @@ async def get_offloading_parameters():
     return offloading_parameters
 
 
-async def auction_call(offloading_parameters, task, machines_connected, auction_running: asyncio.Future):
-    global prev_winner, task_id
+async def auction_call(offloading_parameters, task):
+    global prev_winner, task_id, auction_running
     #Universal part for all auctions
     offloading_parameters["task"] = task
     offloading_parameters["task_id"] = task_id
     offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
-    
-    for machine in machines_connected:
-        await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
+
+
+    await machines.any_connection
+    auction_running = asyncio.Future()
+    for machine in machines:
+        await machine[1].send(json_numpy.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
 
     receive_tasks = []
-    websocketList = [w[1] for w in machines_connected]
+    websocketList = [w[1] for w in machines]
     for connection in websocketList:
         receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
-        
-    print(f'recv 1... machines: {machines_connected}, task: {task_id}')
+
+    print(f'recv 1... machines: {machines}, task: {task_id}')
     finished, unfinished = await asyncio.wait(receive_tasks, timeout=3) #Wait returns the finished and unfinished tasks in the list after the timeout
 
-    auction_running.set_result(False)
-    task_id += 1
-    
     received_values = []
-    try:
-        for finished_task in finished:
-            received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
-    except Exception as e:
-        print(prev_winner)
-        raise e
+    for finished_task in finished:
+        received_values.append(json_numpy.loads(finished_task.result())) #Place the actual bids into the list
+
+    task_id += 1
+
     #Depending on the type of auction, call different functions
     if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
-        prev_winner, result = await auction.sealed_bid(received_values, machines_connected, task, 2)
+        prev_winner, result = await sealed_bid(received_values, task, 2)
         return result
     elif offloading_parameters.get('auction_type') == "FPSB" or offloading_parameters.get('auction_type') == "First Price Sealed Bid":
-        prev_winner, result = await auction.sealed_bid(received_values, machines_connected, task, 1)
+        prev_winner, result = await sealed_bid(received_values, task, 1)
         return result
 
+async def sealed_bid(received_values, task, price_selector):
+    sorted_values = sorted(received_values, key = lambda x:x["bid"])
+    #broadcast actual reward to winner, and "you didnt win" to everone else
+    #await response from winner
 
-async def safe_handle_communication(pair, offloading_parameters):
+    if (len(sorted_values) > 1): #We should never run an auction with only 1 machine
+        lowest_value, second_lowest = sorted_values[0], sorted_values[1]
+        reward_value = sorted_values[1]['bid'] if price_selector == 2 else sorted_values[0]['bid'] / 2
+        non_winner_sockets = [machine[1] for machine in machines if machine[0] != lowest_value.get('id')]
+        winner = None
+        for machine in machines:
+            if machine[0] == lowest_value.get('id'):
+                winner = machine
+                machines.remove(winner)
+                if len(non_winner_sockets) > 0:
+                    websockets.broadcast(non_winner_sockets, json.dumps({"winner": False}))
+                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": task}))
+                auction_running.set_result(False)
+                result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=3))
+                machines.put(winner)
+                return (winner, result)
+    else:
+        reward_value = sorted_values[0]['bid'] if price_selector == 2 else sorted_values[0]['bid'] / 2
+        if machines[0][0] == sorted_values[0].get('id'):
+            winner = machines[0]
+            machines.remove(winner)
+            try:
+                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": task}))
+                auction_running.set_result(False)
+                result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=5))
+            except:
+                traceback.print_exc()
+                raise
+            machines.put(winner)
+            return (winner, result)
+
+
+
+async def safe_handle_communication(task, offloading_parameters):
     global auction_running
-    await auction_running
-    machine = await machines_connected.get()
-    auction_running = asyncio.Future()
-    result = await handle_communication(pair, offloading_parameters, machines_connected._queue.copy()+deque([machine]))
-    await machines_connected.put(machine)
+    await machines.any_connection
+    if not auction_running.done():
+        await auction_running
+
+    result = await handle_communication(task, offloading_parameters)
     return result
 
-async def handle_communication(pair, offloading_parameters, machines):
-    while True:
+async def handle_communication(task, offloading_parameters):
     #Handle the contiuous check of available machines here or earlier
     #This stuff also need to be done concurrently for every single task that comes in
-        if offloading_parameters["offloading_type"] == "Auction":
-            return await auction_call(offloading_parameters, pair, machines, auction_running)
+    if offloading_parameters["offloading_type"] == "Auction":
+        return await auction_call(offloading_parameters, task)
 
 
 async def handle_server():
@@ -173,61 +248,49 @@ async def handle_server():
     while True:
         await sleep(0.01)
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
-        if len(task_queue) != 0 and not machines_connected.empty():
+        if len(task_queue) != 0 and not machines.empty():
             task = task_queue.popleft()
-            vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
+            # vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
             # send vector pairs to machines. 
-            results = await safe_send(vector_pairs)
+            results = await safe_send(task)
             # Upon retrieval put the matrix back together and display the result.
-            dot_product_array = fill_array(results, array_to_be_filled)
-            print(f'we got: {dot_product_array}\n should be: {np.matmul(matrix1, matrix2)}\n'
-                  f'equal: {dot_product_array == np.matmul(matrix1, matrix2)}')
-            print(f'Clients: {machines_connected.qsize()}')
+            # dot_product_array = fill_array(results, array_to_be_filled)
+            print(f'we got: {results}\n should be: {np.matmul(matrix1, matrix2)}\n'
+                  f'equal: {results == np.matmul(matrix1, matrix2)}')
+            print(f'Clients: {len(machines)}')
             task_queue.append((np.random.rand(2, 2), np.random.rand(2, 2)))
 
-async def safe_send(vector_pairs: list):
+async def safe_send(task):
     global auction_running
     """Split vector pairs and safely send the pairs to machines."""
-    sub_tasks = {}
     results = []
-    auction_running = asyncio.Future()
-    auction_running.set_result(False)
     #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
     offloading_parameters = await get_offloading_parameters()
     # Create tasks for all the pairs
-    for pair in vector_pairs:
-        sub_tasks.update({create_task(safe_handle_communication(pair, offloading_parameters)): pair})
-    while sub_tasks:
+    while True:
         try:
+            auction_running = asyncio.Future()
+            auction_running.set_result(False)
             # Run all of the tasks "at once" waiting for 5 seconds then it times out.
             # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await wait(sub_tasks.keys(), timeout=15)
-            for task in done:
+            done, pending = await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=15)
+            for d in done:
                 # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
-                if task.exception() is None:
-                    results.append(task.result())
-                    sub_tasks.pop(task)
-                else: raise task.exception()
+                if d.exception() is None:
+                    results.append(d.result())
+                    return d
+                else: raise d.exception()
         except Exception as e:
             traceback.print_exc()
-        finally:
-            # if we are not done then we cancel all of the tasks, as they have been assigned to a machine already, 
-            # and create the missing tasks again and try sending the missing pairs again. 
-            if sub_tasks:
-                map(lambda sub_task: sub_task.cancel(), sub_tasks.keys())
-                pairs = list(sub_tasks.copy().values())
-                sub_tasks.clear()
-                for pair in pairs:
-                    sub_tasks.update({create_task(safe_handle_communication(pair, offloading_parameters)): pair})
-                    await asyncio.sleep(1)
-    return results
 
 
 async def establish_server():
+    global machines
     """Start a websocket server on ws://192.168.1.10:5001, upon a new connection call new_connection while the server runs handle_server."""
     host = '192.168.1.10'
     port = 5001
     async with websockets.serve(new_connection, host, port) as websocket:
+        machines = MachineQueue()
         await handle_server()
 
 

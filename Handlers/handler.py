@@ -19,21 +19,21 @@ IDLE_POWER_CONSUMPTION = 1
 ACTIVE_POWER_CONSUMPTION = 5
 task_difficulty_duration = {}
 
-def calc_split_matrix(pair):
+def calc_split_matrix(matrices, max_shape_number):
     global task_difficulty_duration
     global internal_value
     active_start_time = time.time()
 
     """Dot products the pair into the respective cell."""
-    print(pair)
-    dot_products = {"dot_product": np.dot(pair["vector"][0], pair["vector"][1]),
-                    "cell": pair["cell"], "completed": True}
+    print(matrices)
+    matrix1, matrix2 = matrices
+    result = np.matmul(matrix1, matrix2)
 
     task_duration = (active_start_time - time.time())
-    task_difficulty_duration[len(pair["vector"])] = task_duration
+    task_difficulty_duration[max_shape_number] = task_duration
 
     internal_value -= task_duration
-    return dot_products
+    return result
 
 
 async def establish_client():
@@ -59,7 +59,7 @@ async def establish_client():
                             auction_result = await bid_truthfully(offloading_parameters, websocket, id)
                             print(f'{CBLUEHIGH}finished receiving {auction_result}')
                         if isinstance(auction_result, dict) and auction_result["winner"] == True:
-                            result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
+                            result = calc_split_matrix(auction_result["task"], offloading_parameters['max_shape_number']) #Interrupt here for continuous check for new auctions and cancelling current auction
                             #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
                             #This does require far better estimation of whether auctions are worth joining
                             print(f'{CGREEN}sending result {result}')
@@ -100,12 +100,13 @@ async def bid_truthfully(offloading_parameters, websocket, id):
     idle_start_time = time.time()
 
     #Change the bid to be based on the dynamically estimated cost of the task
-    estimated_cost_of_task = task_difficulty_duration.get(len(op["task"]["vector"]), len(op["task"]["vector"]) * 0.001) * IDLE_POWER_CONSUMPTION #get previous time to complete, else estimate as 1ms per line in vector
+    #get previous time to complete, else estimate as 1ms per line in vector
+    estimated_cost_of_task = task_difficulty_duration.get(op['max_shape_number'] , op['max_shape_number'] * 0.001) * IDLE_POWER_CONSUMPTION 
     if internal_value < 0:
         bid_value = estimated_cost_of_task + abs(internal_value)
 
     if op.get("deadlines") == "Yes":
-        if op["task"].get("deadline") < task_difficulty_duration[len(op["task"]["vector"])]:
+        if op["task"].get("deadline") < task_difficulty_duration[op['max_shape_number']]:
             bid_value += op["task"].get("fine", 0) 
 
     print(f'{CGREEN}start sending {bid_value}:{id}...')
