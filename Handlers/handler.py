@@ -101,12 +101,12 @@ async def bid_truthfully(offloading_parameters, websocket, id):
 
     #Change the bid to be based on the dynamically estimated cost of the task
     #get previous time to complete, else estimate as 1ms per line in vector
-    estimated_cost_of_task = task_difficulty_duration.get(op['max_shape_number'] , op['max_shape_number'] * 0.001) * IDLE_POWER_CONSUMPTION 
+    estimated_cost_of_task = task_difficulty_duration.get(op['task']['max_shape_number'] , op['task']['max_shape_number'] * 0.001) * IDLE_POWER_CONSUMPTION 
     if internal_value < 0:
         bid_value = estimated_cost_of_task + abs(internal_value)
 
     if op.get("deadlines") == "Yes":
-        if op["task"].get("deadline") < task_difficulty_duration[op['max_shape_number']]:
+        if op["task"].get("deadline") < task_difficulty_duration[op['task']['max_shape_number']]:
             bid_value += op["task"].get("fine", 0) 
 
     print(f'{CGREEN}start sending {bid_value}:{id}...')

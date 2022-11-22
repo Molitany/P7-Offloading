@@ -1,4 +1,4 @@
-from asyncio import sleep, run, Queue, create_task, wait, FIRST_EXCEPTION
+from asyncio import sleep, run, create_task
 import asyncio
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
 from collections import deque
@@ -13,6 +13,7 @@ from websockets.exceptions import ConnectionClosed
 from websockets.legacy.server import WebSocketServerProtocol
 import auction
 import traceback
+from MatrixGenerator import generate_matrices
 
 class MachineQueue():
     def __init__(self) -> None:
@@ -62,7 +63,7 @@ auction_running: asyncio.Future
 matrix1 = np.random.rand(2, 2)
 matrix2 = np.random.rand(2, 2)
 # the task queue is a list of pairs where both elements are matrices
-task_queue = deque([(matrix1, matrix2)])
+task_queue = deque(generate_matrices(amount=1, min_mat_shape=2, max_mat_shape=2, fixed_seed=False))
 task_id = 0
 prev_winner = None
 
@@ -245,6 +246,7 @@ async def handle_communication(task, offloading_parameters):
 
 async def handle_server():
     """Has the server "run in the background" for task offloading to the machines connected."""
+    global task_queue
     while True:
         await sleep(0.01)
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
@@ -258,7 +260,7 @@ async def handle_server():
             print(f'we got: {results}\n should be: {np.matmul(matrix1, matrix2)}\n'
                   f'equal: {results == np.matmul(matrix1, matrix2)}')
             print(f'Clients: {len(machines)}')
-            task_queue.append((np.random.rand(2, 2), np.random.rand(2, 2)))
+            task_queue = deque(generate_matrices(amount=1, min_mat_shape=2, max_mat_shape=2, fixed_seed=False))
 
 async def safe_send(task):
     global auction_running
