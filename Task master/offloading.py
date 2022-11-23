@@ -61,7 +61,7 @@ app = Flask(__name__)
 machines: MachineQueue
 auction_running: asyncio.Future
 # the task queue is a list of pairs where both elements are matrices
-task_queue = deque(generate_matrices(amount=1, min_mat_shape=100, max_mat_shape=100, fixed_seed=False))
+task_queue = deque(generate_matrices(amount=2, min_mat_shape=100, max_mat_shape=100, fixed_seed=False))
 task_id = 0
 prev_winner = None
 
@@ -249,16 +249,22 @@ async def handle_server():
         await sleep(0.01)
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
         if len(task_queue) != 0 and not machines.empty():
-            task = task_queue.popleft()
-            # vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
-            # send vector pairs to machines. 
-            results = await safe_send(task)
-            # Upon retrieval put the matrix back together and display the result.
-            # dot_product_array = fill_array(results, array_to_be_filled)
-            print(f'we got: {results}\n should be: {np.matmul(task["mat1"], task["mat2"])}\n'
-                  f'equal: {results == np.matmul(task["mat1"], task["mat2"])}')
-            print(f'Clients: {len(machines)}')
-            task_queue = deque(generate_matrices(amount=1, min_mat_shape=300, max_mat_shape=300, fixed_seed=False))
+            a = [asyncio.create_task(thing()) for task in task_queue.copy()]
+            done, pending = await asyncio.wait(a)
+            task_queue = deque(generate_matrices(amount=7, min_mat_shape=300, max_mat_shape=300, fixed_seed=False))
+
+
+async def thing():
+    task = task_queue.popleft()
+    # vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
+    # send vector pairs to machines. 
+
+    results = await safe_send(task)
+    # Upon retrieval put the matrix back together and display the result.
+    # dot_product_array = fill_array(results, array_to_be_filled)
+    print(f'we got: {results}\n should be: {np.matmul(task["mat1"], task["mat2"])}\n'
+            f'equal: {results == np.matmul(task["mat1"], task["mat2"])}')
+    print(f'Clients: {len(machines)}')
 
 
 async def safe_send(task):
@@ -268,13 +274,11 @@ async def safe_send(task):
     #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
     offloading_parameters = await get_offloading_parameters()
     # Create tasks for all the pairs
+    auction_running = asyncio.Future()
+    auction_running.set_result(None)
     while True:
-        auction_running = asyncio.Future()
-        auction_running.set_result(False)
-        # Run all of the tasks "at once" waiting for 5 seconds then it times out.
-        # The wait stops when a task hits an exception or until they are all completed
         try:
-            return await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=60)
+            return await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=7)
         except Exception:
             traceback.print_exc()
 

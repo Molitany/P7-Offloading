@@ -59,7 +59,10 @@ async def establish_client():
                 while True:
                     print(f'{CBLUE}start receiving auction...')
                     res = json.loads(await websocket.recv())
-                    id, offloading_parameters = res
+                    try:
+                        id, offloading_parameters = res
+                    except:
+                        pass
                     print(f'{CBLUEHIGH}finished receiving {id}:{offloading_parameters}')
                     if offloading_parameters["offloading_type"] == "Auction":
                         if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
@@ -90,8 +93,6 @@ async def establish_client():
         except InvalidMessage:
             print(f'{CRED}Invalid Message')
             await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            pass
 
 
 async def bid_truthfully(offloading_parameters, websocket, id):
