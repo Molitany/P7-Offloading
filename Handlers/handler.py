@@ -55,7 +55,7 @@ async def establish_client():
 
     while True:
         try:
-            async with connect(f"ws://{host}:{port}") as websocket:
+            async with connect(f"ws://{host}:{port}", max_size=None) as websocket:
                 while True:
                     print(f'{CBLUE}start receiving auction...')
                     res = json.loads(await websocket.recv())

@@ -258,7 +258,7 @@ async def handle_server():
             print(f'we got: {results}\n should be: {np.matmul(task["mat1"], task["mat2"])}\n'
                   f'equal: {results == np.matmul(task["mat1"], task["mat2"])}')
             print(f'Clients: {len(machines)}')
-            task_queue = deque(generate_matrices(amount=1, min_mat_shape=500, max_mat_shape=500, fixed_seed=False))
+            task_queue = deque(generate_matrices(amount=1, min_mat_shape=300, max_mat_shape=300, fixed_seed=False))
 
 
 async def safe_send(task):
@@ -285,7 +285,7 @@ async def establish_server():
     """Start a websocket server on ws://192.168.1.10:5001, upon a new connection call new_connection while the server runs handle_server."""
     host = '192.168.1.10'
     port = 5001
-    async with websockets.serve(new_connection, host, port) as websocket:
+    async with websockets.serve(new_connection, host, port, max_size=None) as websocket:
         machines = MachineQueue()
         await handle_server()
 
