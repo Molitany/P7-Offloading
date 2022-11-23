@@ -45,6 +45,9 @@ class MachineQueue():
     def empty(self) -> bool:
         return not self.connected
 
+    def copy(self):
+        return self.connected.copy()
+
     def __iter__(self):
         return self.connected.__iter__()
 
@@ -162,11 +165,11 @@ async def auction_call(offloading_parameters, task):
 
     await machines.any_connection
     auction_running = asyncio.Future()
-    for machine in machines:
+    for machine in machines.copy():
         await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
 
     receive_tasks = []
-    websocketList = [w[1] for w in machines]
+    websocketList = [w[1] for w in machines.copy()]
     for connection in websocketList:
         receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
 
@@ -196,9 +199,9 @@ async def sealed_bid(received_values, task, price_selector):
     if (len(sorted_values) > 1): #We should never run an auction with only 1 machine
         lowest_value, second_lowest = sorted_values[0], sorted_values[1]
         reward_value = sorted_values[1]['bid'] if price_selector == 2 else sorted_values[0]['bid'] / 2
-        non_winner_sockets = [machine[1] for machine in machines if machine[0] != lowest_value.get('id')]
+        non_winner_sockets = [machine[1] for machine in machines.copy() if machine[0] != lowest_value.get('id')]
         winner = None
-        for machine in machines:
+        for machine in machines.copy():
             if machine[0] == lowest_value.get('id'):
                 winner = machine
                 machines.remove(winner)
