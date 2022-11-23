@@ -30,6 +30,14 @@ def calc_split_matrix(matrices):
     matrix2 = matrices.get('mat2')
     result = np.matmul(matrix1, matrix2)
 
+    # Dont do this but required to send as json instead of ndarray
+    a: list = list()
+    b: list = list()
+    for i in range(len(matrix1)):
+        a.append(list(matrix1[i]))
+    for i in range(len(matrix2)):
+        b.append(list(matrix2[i]))
+
     task_duration = (active_start_time - time.time())
     task_difficulty_duration['max_shape_number'] = task_duration
 
