@@ -60,8 +60,6 @@ class MachineQueue():
 app = Flask(__name__)
 machines: MachineQueue
 auction_running: asyncio.Future
-matrix1 = np.random.rand(2, 2)
-matrix2 = np.random.rand(2, 2)
 # the task queue is a list of pairs where both elements are matrices
 task_queue = deque(generate_matrices(amount=1, min_mat_shape=100, max_mat_shape=100, fixed_seed=False))
 task_id = 0
@@ -162,7 +160,6 @@ async def auction_call(offloading_parameters, task):
     offloading_parameters["task_id"] = task_id
     offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
 
-
     await machines.any_connection
     auction_running = asyncio.Future()
     for machine in machines:
@@ -189,6 +186,7 @@ async def auction_call(offloading_parameters, task):
     elif offloading_parameters.get('auction_type') == "FPSB" or offloading_parameters.get('auction_type') == "First Price Sealed Bid":
         prev_winner, result = await sealed_bid(received_values, task, 1)
         return result
+
 
 async def sealed_bid(received_values, task, price_selector):
     sorted_values = sorted(received_values, key = lambda x:x["bid"])
@@ -227,7 +225,6 @@ async def sealed_bid(received_values, task, price_selector):
             return (winner, result)
 
 
-
 async def safe_handle_communication(task, offloading_parameters):
     global auction_running
     await machines.any_connection
@@ -236,6 +233,7 @@ async def safe_handle_communication(task, offloading_parameters):
 
     result = await handle_communication(task, offloading_parameters)
     return result
+
 
 async def handle_communication(task, offloading_parameters):
     #Handle the contiuous check of available machines here or earlier
@@ -258,9 +256,10 @@ async def handle_server():
             # Upon retrieval put the matrix back together and display the result.
             # dot_product_array = fill_array(results, array_to_be_filled)
             print(f'we got: {results}\n should be: {np.matmul(task["mat1"], task["mat2"])}\n'
-                  f'equal: {results == np.matmul(matrix1, matrix2)}')
+                  f'equal: {results == np.matmul(task["mat1"], task["mat2"])}')
             print(f'Clients: {len(machines)}')
             task_queue = deque(generate_matrices(amount=1, min_mat_shape=500, max_mat_shape=500, fixed_seed=False))
+
 
 async def safe_send(task):
     global auction_running

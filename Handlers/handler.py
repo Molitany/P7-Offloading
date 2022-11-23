@@ -1,5 +1,5 @@
 import asyncio
-import json_numpy
+import json
 
 from websockets import connect
 import numpy as np
@@ -53,7 +53,7 @@ async def establish_client():
             async with connect(f"ws://{host}:{port}") as websocket:
                 while True:
                     print(f'{CBLUE}start receiving auction...')
-                    res = json_numpy.loads(await websocket.recv())
+                    res = json.loads(await websocket.recv())
                     id, offloading_parameters = res
                     print(f'{CBLUEHIGH}finished receiving {id}:{offloading_parameters}')
                     if offloading_parameters["offloading_type"] == "Auction":
@@ -65,7 +65,7 @@ async def establish_client():
                             #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
                             #This does require far better estimation of whether auctions are worth joining
                             print(f'{CGREEN}sending result {result}')
-                            await websocket.send(json_numpy.dumps(result))
+                            await websocket.send(json.dumps(result))
                             print(f'{CGREENHIGH}finished sending result')
                             global internal_value
                             internal_value += auction_result["reward"]
@@ -113,14 +113,14 @@ async def bid_truthfully(offloading_parameters, websocket, id):
     print(f'{CGREEN}start sending {bid_value}:{id}...')
     if op.get("map_reward") == "Yes":
         if bid_value < op["task"].get("max_reward"):
-            await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
+            await websocket.send(json.dumps({"bid": bid_value, 'id': id}))
         else:
-            await websocket.send(json_numpy.dumps({"bid": op["max_reward"], 'id': id}))
+            await websocket.send(json.dumps({"bid": op["max_reward"], 'id': id}))
     else:
-        await websocket.send(json_numpy.dumps({"bid": bid_value, 'id': id}))
+        await websocket.send(json.dumps({"bid": bid_value, 'id': id}))
     print(f'{CGREENHIGH}finished sending')
     print(f'{CBLUE}start receiving result...')
-    return json_numpy.loads(await websocket.recv())
+    return json.loads(await websocket.recv())
  
 
 
