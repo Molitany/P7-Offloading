@@ -32,17 +32,14 @@ def calc_split_matrix(matrices):
 
     # Dont do this but required to send as json instead of ndarray
     a: list = list()
-    b: list = list()
-    for i in range(len(matrix1)):
-        a.append(list(matrix1[i]))
-    for i in range(len(matrix2)):
-        b.append(list(matrix2[i]))
+    for i in range(len(result)):
+        a.append(list(result[i]))
 
     task_duration = (active_start_time - time.time())
     task_difficulty_duration['max_shape_number'] = task_duration
 
     internal_value -= task_duration
-    return result
+    return a
 
 
 async def establish_client():
