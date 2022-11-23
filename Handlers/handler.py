@@ -53,7 +53,8 @@ async def establish_client():
             async with connect(f"ws://{host}:{port}") as websocket:
                 while True:
                     print(f'{CBLUE}start receiving auction...')
-                    id, offloading_parameters = json_numpy.loads(await websocket.recv())
+                    res = json_numpy.loads(await websocket.recv())
+                    id, offloading_parameters = res
                     print(f'{CBLUEHIGH}finished receiving {id}:{offloading_parameters}')
                     if offloading_parameters["offloading_type"] == "Auction":
                         if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":

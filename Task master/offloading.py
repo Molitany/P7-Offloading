@@ -6,7 +6,7 @@ from threading import Thread
 from flask import Flask, request
 import websockets
 import numpy as np
-import json_numpy
+import json
 import json
 import random
 from websockets.exceptions import ConnectionClosed
@@ -63,7 +63,7 @@ auction_running: asyncio.Future
 matrix1 = np.random.rand(2, 2)
 matrix2 = np.random.rand(2, 2)
 # the task queue is a list of pairs where both elements are matrices
-task_queue = deque(generate_matrices(amount=1, min_mat_shape=2, max_mat_shape=2, fixed_seed=False))
+task_queue = deque(generate_matrices(amount=1, min_mat_shape=100, max_mat_shape=100, fixed_seed=False))
 task_id = 0
 prev_winner = None
 
@@ -166,7 +166,7 @@ async def auction_call(offloading_parameters, task):
     await machines.any_connection
     auction_running = asyncio.Future()
     for machine in machines:
-        await machine[1].send(json_numpy.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
+        await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
 
     receive_tasks = []
     websocketList = [w[1] for w in machines]
@@ -178,7 +178,7 @@ async def auction_call(offloading_parameters, task):
 
     received_values = []
     for finished_task in finished:
-        received_values.append(json_numpy.loads(finished_task.result())) #Place the actual bids into the list
+        received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
 
     task_id += 1
 
@@ -217,7 +217,7 @@ async def sealed_bid(received_values, task, price_selector):
             winner = machines[0]
             machines.remove(winner)
             try:
-                await winner[1].send(json_numpy.dumps({"winner": True, "reward": reward_value, "task": task}))
+                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": task}))
                 auction_running.set_result(False)
                 result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=5))
             except:
@@ -257,10 +257,10 @@ async def handle_server():
             results = await safe_send(task)
             # Upon retrieval put the matrix back together and display the result.
             # dot_product_array = fill_array(results, array_to_be_filled)
-            print(f'we got: {results}\n should be: {np.matmul(matrix1, matrix2)}\n'
+            print(f'we got: {results}\n should be: {np.matmul(task["mat1"], task["mat2"])}\n'
                   f'equal: {results == np.matmul(matrix1, matrix2)}')
             print(f'Clients: {len(machines)}')
-            task_queue = deque(generate_matrices(amount=1, min_mat_shape=2, max_mat_shape=2, fixed_seed=False))
+            task_queue = deque(generate_matrices(amount=1, min_mat_shape=500, max_mat_shape=500, fixed_seed=False))
 
 async def safe_send(task):
     global auction_running
@@ -270,20 +270,15 @@ async def safe_send(task):
     offloading_parameters = await get_offloading_parameters()
     # Create tasks for all the pairs
     while True:
+        auction_running = asyncio.Future()
+        auction_running.set_result(False)
+        # Run all of the tasks "at once" waiting for 5 seconds then it times out.
+        # The wait stops when a task hits an exception or until they are all completed
         try:
-            auction_running = asyncio.Future()
-            auction_running.set_result(False)
-            # Run all of the tasks "at once" waiting for 5 seconds then it times out.
-            # The wait stops when a task hits an exception or until they are all completed
-            done, pending = await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=15)
-            for d in done:
-                # ConnectionClosedOK is done but also an exception, so we have to check if the task is actually returned a result.
-                if d.exception() is None:
-                    results.append(d.result())
-                    return d
-                else: raise d.exception()
-        except Exception as e:
+            return await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=60)
+        except Exception:
             traceback.print_exc()
+
 
 
 async def establish_server():
