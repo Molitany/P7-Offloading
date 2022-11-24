@@ -60,7 +60,7 @@ async def establish_client():
                     res = json.loads(await websocket.recv())
                     if len(res) == 2:
                         id, offloading_parameters = res
-                        print(f'{CBLUEHIGH}finished receiving {id}:{offloading_parameters}')
+                        print(f'{CBLUEHIGH}finished receiving {id}')
                         if offloading_parameters["offloading_type"] == "Auction":
                             if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
                                 auction_result = await bid_truthfully(offloading_parameters, websocket, id)
