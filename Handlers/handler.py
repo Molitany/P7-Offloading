@@ -18,6 +18,8 @@ idle_start_time = time.time()
 IDLE_POWER_CONSUMPTION = 1
 ACTIVE_POWER_CONSUMPTION = 5
 task_difficulty_duration = {}
+auction_result = None
+prev_task_id = None
 
 def calc_split_matrix(matrices):
     global task_difficulty_duration
@@ -56,28 +58,7 @@ async def establish_client():
         try:
             async with connect(f"ws://{host}:{port}", max_size=None) as websocket:
                 while True:
-                    print(f'{CBLUE}start receiving auction...')
-                    res = json.loads(await websocket.recv())
-                    if len(res) == 2:
-                        id, offloading_parameters = res
-                        print(f'{CBLUEHIGH}finished receiving {id}')
-                        if offloading_parameters["offloading_type"] == "Auction":
-                            if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
-                                auction_result = await bid_truthfully(offloading_parameters, websocket, id)
-                            if isinstance(auction_result, dict):
-                                print(f'{CBLUEHIGH}finished receiving winner: {auction_result["winner"]}')
-                                if auction_result["winner"] == True:
-                                    result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
-                                    #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
-                                    #This does require far better estimation of whether auctions are worth joining
-                                    print(f'{CGREEN}sending result...')
-                                    await websocket.send(json.dumps(result))
-                                    print(f'{CGREENHIGH}finished sending result')
-                                    global internal_value
-                                    internal_value += auction_result["reward"]
-                                    global idle_start_time
-                                    idle_start_time = time.time()
-
+                    recieve_handler(websocket)
 
         except ConnectionRefusedError:
             print(f'{CRED}Connection refused')
@@ -92,6 +73,34 @@ async def establish_client():
             print(f'{CRED}Invalid Message')
             await asyncio.sleep(1)
 
+async def recieve_handler(websocket):
+    recieved = await websocket.recv()
+    if len(recieved) == 2:
+        await auction_action(websocket, recieved)
+    elif not auction_result == None and isinstance(auction_result, dict) and auction_result['task_id'] > prev_task_id:
+        await winner_action(websocket)
+
+async def auction_action(websocket, recieved):
+    global auction_result, prev_task_id
+    id, offloading_parameters = recieved
+    print(f'{CBLUEHIGH}finished receiving auction {id}')
+    if offloading_parameters["offloading_type"] == "Auction":
+        if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
+            auction_result = await bid_truthfully(offloading_parameters, websocket, id)
+
+async def winner_action(websocket):
+    global internal_value, idle_start_time
+    print(f'{CBLUEHIGH}finished receiving winner: {auction_result["winner"]}')
+    if auction_result["winner"] == True:
+        result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
+            #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
+            #This does require far better estimation of whether auctions are worth joining
+        print(f'{CGREEN}sending result...')
+        await websocket.send(json.dumps(result))
+        print(f'{CGREENHIGH}finished sending result')
+        internal_value += auction_result["reward"]
+        idle_start_time = time.time()
+        prev_task_id = auction_result['task_id']
 
 async def bid_truthfully(offloading_parameters, websocket, id):
     global idle_start_time

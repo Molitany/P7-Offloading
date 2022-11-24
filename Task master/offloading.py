@@ -179,14 +179,14 @@ async def auction_call(offloading_parameters, task):
 
     #Depending on the type of auction, call different functions
     if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
-        prev_winner, result = await sealed_bid(received_values, task, 2)
+        prev_winner, result = await sealed_bid(received_values, offloading_parameters, 2)
         return result
     elif offloading_parameters.get('auction_type') == "FPSB" or offloading_parameters.get('auction_type') == "First Price Sealed Bid":
-        prev_winner, result = await sealed_bid(received_values, task, 1)
+        prev_winner, result = await sealed_bid(received_values, offloading_parameters, 1)
         return result
 
 
-async def sealed_bid(received_values, task, price_selector):
+async def sealed_bid(received_values, offloading_parameters, price_selector):
     sorted_values = sorted(received_values, key = lambda x:x["bid"])
     #broadcast actual reward to winner, and "you didnt win" to everone else
     #await response from winner
@@ -202,7 +202,7 @@ async def sealed_bid(received_values, task, price_selector):
                 machines.remove(winner)
                 if len(non_winner_sockets) > 0:
                     websockets.broadcast(non_winner_sockets, json.dumps({"winner": False}))
-                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": task}))
+                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": offloading_parameters['task'], 'task_id': offloading_parameters['task_id']}))
                 auction_running.set_result(False)
                 result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=3))
                 machines.put(winner)
@@ -213,7 +213,7 @@ async def sealed_bid(received_values, task, price_selector):
             winner = machines[0]
             machines.remove(winner)
             try:
-                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": task}))
+                await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": offloading_parameters['task'], 'task_id': offloading_parameters['task_id']}))
                 auction_running.set_result(False)
                 result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=5))
             except:
