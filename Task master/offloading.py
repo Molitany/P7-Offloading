@@ -1,17 +1,12 @@
 from asyncio import sleep, run, create_task
 import asyncio
-from asyncio.exceptions import TimeoutError as AsyncTimeoutError
 from collections import deque
-from threading import Thread
 from flask import Flask, request
 import websockets
 import numpy as np
 import json
-import json
 import random
-from websockets.exceptions import ConnectionClosed
 from websockets.legacy.server import WebSocketServerProtocol
-import auction
 import traceback
 from MatrixGenerator import generate_matrices
 
@@ -162,7 +157,7 @@ async def auction_call(offloading_parameters, task):
     offloading_parameters["task"] = task
     offloading_parameters["task_id"] = task_id
     offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
-
+    
     await machines.any_connection
     auction_running = asyncio.Future()
     for machine in machines.copy():
@@ -252,12 +247,13 @@ async def handle_server():
         await sleep(0.01)
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
         if len(task_queue) != 0 and not machines.empty():
-            a = [asyncio.create_task(thing()) for task in task_queue.copy()]
-            done, pending = await asyncio.wait(a)
+            tasks = [asyncio.create_task(task_handler()) for _ in machines]
+            done, pending = await asyncio.wait(tasks)
             task_queue = deque(generate_matrices(amount=7, min_mat_shape=300, max_mat_shape=300, fixed_seed=False))
 
 
-async def thing():
+async def task_handler():
+    global task_queue
     task = task_queue.popleft()
     # vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
     # send vector pairs to machines. 
@@ -265,8 +261,7 @@ async def thing():
     results = await safe_send(task)
     # Upon retrieval put the matrix back together and display the result.
     # dot_product_array = fill_array(results, array_to_be_filled)
-    print(f'we got: {results}\n should be: {np.matmul(task["mat1"], task["mat2"])}\n'
-            f'equal: {results == np.matmul(task["mat1"], task["mat2"])}')
+    print(f'equal: {results == np.matmul(task["mat1"], task["mat2"])}')
     print(f'Clients: {len(machines)}')
 
 
