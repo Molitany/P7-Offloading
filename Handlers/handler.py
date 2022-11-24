@@ -25,7 +25,6 @@ def calc_split_matrix(matrices):
     active_start_time = time.time()
 
     """Dot products the pair into the respective cell."""
-    print(matrices)
     matrix1 = matrices.get('mat1')
     matrix2 = matrices.get('mat2')
     result = np.matmul(matrix1, matrix2)
