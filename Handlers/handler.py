@@ -64,7 +64,7 @@ async def establish_client():
                         if offloading_parameters["offloading_type"] == "Auction":
                             if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
                                 auction_result = await bid_truthfully(offloading_parameters, websocket, id)
-                                print(f'{CBLUEHIGH}finished receiving auction result')
+                                print(f'{CBLUEHIGH}finished receiving {auction_result}')
                             if isinstance(auction_result, dict) and auction_result["winner"] == True:
                                 result = calc_split_matrix(auction_result["task"]) #Interrupt here for continuous check for new auctions and cancelling current auction
                                 #The above maybe needs to be done in a separate process, so we can compute while still judging auctions
