@@ -58,7 +58,7 @@ async def establish_client():
         try:
             async with connect(f"ws://{host}:{port}", max_size=None) as websocket:
                 while True:
-                    recieve_handler(websocket)
+                    await recieve_handler(websocket)
 
         except ConnectionRefusedError:
             print(f'{CRED}Connection refused')
