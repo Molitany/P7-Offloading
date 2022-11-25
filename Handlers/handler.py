@@ -77,9 +77,9 @@ async def recieve_handler(websocket):
     recieved = json.loads(await websocket.recv())
     if isinstance(recieved, list):
         await auction_action(websocket, recieved)
-    elif isinstance(recieved, dict) and recieved.get('task_id') > prev_task_id:
-        print(f'{CBLUEHIGH}finished receiving winner: {auction_result["winner"]}')
-        if recieved.get('winner'):
+    elif isinstance(recieved, dict):
+        print(f'{CBLUEHIGH}finished receiving winner: {recieved["winner"]}')
+        if recieved.get('winner') and recieved.get('task_id') > prev_task_id:
             await winner_action(websocket, recieved)
         prev_task_id = recieved.get('task_id')
 
