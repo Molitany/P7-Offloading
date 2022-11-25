@@ -83,7 +83,7 @@ async def recieve_handler(websocket):
 
 async def auction_action(websocket, recieved):
     id, offloading_parameters = recieved
-    print(f'{CBLUEHIGH}finished receiving auction {id}')
+    print(f'{CBLUEHIGH}finished receiving auction {{id:{id} task:{offloading_parameters.get("task_id")}}}')
     if offloading_parameters["offloading_type"] == "Auction":
         if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
             await bid_truthfully(offloading_parameters, websocket, id)
