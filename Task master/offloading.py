@@ -169,7 +169,7 @@ async def auction_call(offloading_parameters, task):
         receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
 
     print(f'recv 1... machines: {machines}, task: {task_id}')
-    finished, unfinished = await asyncio.wait(receive_tasks, timeout=3) #Wait returns the finished and unfinished tasks in the list after the timeout
+    finished, unfinished = await asyncio.wait(receive_tasks, timeout=60) #Wait returns the finished and unfinished tasks in the list after the timeout
 
     received_values = []
     for finished_task in finished:
@@ -204,7 +204,7 @@ async def sealed_bid(received_values, offloading_parameters, price_selector):
                     websockets.broadcast(non_winner_sockets, json.dumps({"winner": False}))
                 await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": offloading_parameters['task'], 'task_id': offloading_parameters['task_id']}))
                 auction_running.set_result(False)
-                result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=3))
+                result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=60))
                 machines.put(winner)
                 return (winner, result)
     else:
@@ -215,7 +215,7 @@ async def sealed_bid(received_values, offloading_parameters, price_selector):
             try:
                 await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": offloading_parameters['task'], 'task_id': offloading_parameters['task_id']}))
                 auction_running.set_result(False)
-                result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=5))
+                result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=60))
             except:
                 traceback.print_exc()
                 raise
@@ -276,7 +276,7 @@ async def safe_send(task):
     auction_running.set_result(None)
     while True:
         try:
-            return await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=7)
+            return await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=60)
         except Exception:
             traceback.print_exc()
 
