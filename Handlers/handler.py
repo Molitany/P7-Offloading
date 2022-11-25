@@ -74,14 +74,14 @@ async def establish_client():
 
 async def recieve_handler(websocket):
     global prev_task_id
-    recieved = json.loads(await websocket.recv())
-    if isinstance(recieved, list):
-        await auction_action(websocket, recieved)
-    elif isinstance(recieved, dict):
-        print(f'{CBLUEHIGH}finished receiving winner: {recieved["winner"]}')
-        if recieved.get('winner') and recieved.get('task_id') > prev_task_id:
-            await winner_action(websocket, recieved)
-        prev_task_id = recieved.get('task_id')
+    received = json.loads(await websocket.recv())
+    if isinstance(received, list):
+        await auction_action(websocket, received)
+    elif isinstance(received, dict):
+        print(f'{CBLUEHIGH}finished receiving winner: {received["winner"]}')
+        if received.get('winner'):
+            await winner_action(websocket, received)
+        prev_task_id = received.get('task_id')
 
 async def auction_action(websocket, recieved):
     id, offloading_parameters = recieved

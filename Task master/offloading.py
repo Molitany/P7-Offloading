@@ -57,7 +57,7 @@ class MachineQueue():
 
 app = Flask(__name__)
 machines: MachineQueue
-auction_running: asyncio.Future
+auction_running = asyncio.Lock()
 # the task queue is a list of pairs where both elements are matrices
 task_queue = deque(generate_matrices(amount=2, min_mat_shape=100, max_mat_shape=100, fixed_seed=False))
 task_id = 0
@@ -158,33 +158,35 @@ async def auction_call(offloading_parameters, task):
     offloading_parameters["task_id"] = task_id
     offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
     
-    await machines.any_connection
-    auction_running = asyncio.Future()
-    for machine in machines.copy():
-        await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
+    await auction_running.acquire()
+    try:
+        await machines.any_connection
+        for machine in machines.copy():
+            await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
 
-    receive_tasks = []
-    websocketList = [w[1] for w in machines.copy()]
-    for connection in websocketList:
-        receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
+        receive_tasks = []
+        websocketList = [w[1] for w in machines.copy()]
+        for connection in websocketList:
+            receive_tasks.append(asyncio.create_task(connection.recv())) #Create a task to receive bids from every machine
 
-    print(f'recv 1... machines: {machines}, task: {task_id}')
-    finished, unfinished = await asyncio.wait(receive_tasks, timeout=60) #Wait returns the finished and unfinished tasks in the list after the timeout
+        print(f'recv 1... machines: {machines}, task: {task_id}')
+        finished, unfinished = await asyncio.wait(receive_tasks, timeout=60) #Wait returns the finished and unfinished tasks in the list after the timeout
 
-    received_values = []
-    for finished_task in finished:
-        received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
+        received_values = []
+        for finished_task in finished:
+            received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
 
-    task_id += 1
+        task_id += 1
 
-    #Depending on the type of auction, call different functions
-    if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
-        prev_winner, result = await sealed_bid(received_values, offloading_parameters, 2)
-        return result
-    elif offloading_parameters.get('auction_type') == "FPSB" or offloading_parameters.get('auction_type') == "First Price Sealed Bid":
-        prev_winner, result = await sealed_bid(received_values, offloading_parameters, 1)
-        return result
-
+        #Depending on the type of auction, call different functions
+        if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
+            prev_winner, result = await sealed_bid(received_values, offloading_parameters, 2)
+            return result
+        elif offloading_parameters.get('auction_type') == "FPSB" or offloading_parameters.get('auction_type') == "First Price Sealed Bid":
+            prev_winner, result = await sealed_bid(received_values, offloading_parameters, 1)
+            return result
+    except:
+        pass
 
 async def sealed_bid(received_values, offloading_parameters, price_selector):
     sorted_values = sorted(received_values, key = lambda x:x["bid"])
@@ -201,9 +203,9 @@ async def sealed_bid(received_values, offloading_parameters, price_selector):
                 winner = machine
                 machines.remove(winner)
                 if len(non_winner_sockets) > 0:
-                    websockets.broadcast(non_winner_sockets, json.dumps({"winner": False}))
+                    websockets.broadcast(non_winner_sockets, json.dumps({"winner": False, 'task_id': offloading_parameters.get('task_id')}))
                 await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": offloading_parameters['task'], 'task_id': offloading_parameters['task_id']}))
-                auction_running.set_result(False)
+                auction_running.release()
                 result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=60))
                 machines.put(winner)
                 return (winner, result)
@@ -214,7 +216,7 @@ async def sealed_bid(received_values, offloading_parameters, price_selector):
             machines.remove(winner)
             try:
                 await winner[1].send(json.dumps({"winner": True, "reward": reward_value, "task": offloading_parameters['task'], 'task_id': offloading_parameters['task_id']}))
-                auction_running.set_result(False)
+                auction_running.release()
                 result = json.loads(await asyncio.wait_for(winner[1].recv(), timeout=60))
             except:
                 traceback.print_exc()
@@ -224,11 +226,7 @@ async def sealed_bid(received_values, offloading_parameters, price_selector):
 
 
 async def safe_handle_communication(task, offloading_parameters):
-    global auction_running
     await machines.any_connection
-    if not auction_running.done():
-        await auction_running
-
     result = await handle_communication(task, offloading_parameters)
     return result
 
@@ -243,6 +241,7 @@ async def handle_communication(task, offloading_parameters):
 async def handle_server():
     """Has the server "run in the background" for task offloading to the machines connected."""
     global task_queue
+    await sleep(0.1)
     while True:
         await sleep(0.01)
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
@@ -266,14 +265,11 @@ async def task_handler():
 
 
 async def safe_send(task):
-    global auction_running
     """Split vector pairs and safely send the pairs to machines."""
     results = []
     #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
     offloading_parameters = await get_offloading_parameters()
     # Create tasks for all the pairs
-    auction_running = asyncio.Future()
-    auction_running.set_result(None)
     while True:
         try:
             return await asyncio.wait_for(create_task(safe_handle_communication(task, offloading_parameters)), timeout=60)
