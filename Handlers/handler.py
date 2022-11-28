@@ -4,7 +4,6 @@ import json
 from websockets import connect
 import numpy as np
 from websockets.exceptions import ConnectionClosed, InvalidMessage
-import random
 import time
 
 CRED    = '\33[31m'
@@ -18,7 +17,6 @@ idle_start_time = time.time()
 IDLE_POWER_CONSUMPTION = 1
 ACTIVE_POWER_CONSUMPTION = 5
 task_difficulty_duration = {}
-prev_task_id = -1
 
 def calc_split_matrix(matrices):
     global task_difficulty_duration
