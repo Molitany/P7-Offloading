@@ -28,7 +28,6 @@ def calc_split_matrix(matrices):
     matrix2 = matrices.get('mat2')
     result = np.matmul(matrix1, matrix2)
 
-    # Dont do this but required to send as json instead of ndarray
     a: list = list()
     for i in range(len(result)):
         a.append(list(result[i]))
