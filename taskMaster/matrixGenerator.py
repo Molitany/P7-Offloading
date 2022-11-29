@@ -1,10 +1,14 @@
 import numpy
 import random
 
-def Average(lst):
+def _average(lst):
     return sum(lst) / len(lst)
 
 def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadline=10, max_deadline=75, fixed_seed=True):
+    '''
+    Generates matrix pairs with the given parameters.\n
+    The pairs have a deadline, max_reward and max_shape_number.
+    '''
     if fixed_seed: random.seed(69)
     
     matrix_array = []
@@ -26,7 +30,7 @@ def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadl
             "mat1" : a,
             "mat2" : b,
             "deadlineSeconds" : deadlineSeconds,
-            "max_reward" : (max_deadline - deadlineSeconds) * Average(shape_numbers),
+            "max_reward" : (max_deadline - deadlineSeconds) * _average(shape_numbers),
             "max_shape_number" : max(shape_numbers)
         }
         matrix_array.append(pair)

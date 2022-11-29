@@ -1,13 +1,13 @@
 from asyncio import sleep, run, wait, create_task
 from collections import deque
 from threading import Thread
-from flask import Flask, request
+from flask import Flask
 import websockets
 import numpy as np
 import traceback
-from MatrixGenerator import generate_matrices
+from taskMaster.matrixGenerator import generate_matrices
 from auction import auction_call
-from MachineQueue import MachineQueue
+from taskMaster.machineQueue import MachineQueue
 
 app = Flask(__name__)
 machines: MachineQueue
@@ -45,7 +45,7 @@ def fill_array(dot_products, array_to_be_filled):
 
 
 async def get_offloading_parameters():
-
+    '''Get the offloading parameters for the offloading with inputs from the server console.'''
     offloading_parameters = {}
 
     print("""What type of offloading to use?
@@ -102,8 +102,8 @@ async def new_connection(websocket):
 
 
 async def handle_communication(task, offloading_parameters):
+    '''Start an auction if a machine is available and it is an Auction.'''    
     #Handle the contiuous check of available machines here or earlier
-    #This stuff also need to be done concurrently for every single task that comes in
     await machines.any_connection
     if offloading_parameters["offloading_type"] == "Auction":
         return await auction_call(offloading_parameters, task, machines)
@@ -123,24 +123,18 @@ async def handle_server():
 
 
 async def task_handler():
+    '''Gets a task from the queue and start an auction for it when available.'''
     global task_queue
-    task = task_queue.popleft()
-    # vector_pairs, array_to_be_filled = split_matrix(task[0], task[1])
-    # send vector pairs to machines. 
-
-    results = await safe_send(task)
-    # Upon retrieval put the matrix back together and display the result.
-    # dot_product_array = fill_array(results, array_to_be_filled)
+    task = task_queue.popleft() # Get a task from the task queue
+    results = await safe_send(task) # Send it to be auctioned
+    # Display result
     print(f'equal: {results == np.matmul(task["mat1"], task["mat2"])}')
     print(f'Clients: {len(machines)}')
 
 
 async def safe_send(task):
-    """Split vector pairs and safely send the pairs to machines."""
-    results = []
-    #Potentially wrap this in a block that does a certain amount of tasks or has a certain duration, for easier experiment simulation
+    '''Gets the offloading parameters and wraps the auction in a failsafe to start a new auction if the tasks fails'''
     offloading_parameters = await get_offloading_parameters()
-    # Create tasks for all the pairs
     while True:
         try:
             return await handle_communication(task, offloading_parameters)
@@ -160,11 +154,11 @@ async def establish_server():
 
 @app.route("/", methods=["GET"])
 def receive_task():
+    '''Generate matrix when this endpoint is hit.'''
     task_queue.extend(deque(generate_matrices(amount=7, min_mat_shape=300, max_mat_shape=300, fixed_seed=False)))
     return 'ok'
 
 
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)).start()
-    # Run establish_server asynchronously 
-    run(establish_server())
+    run(establish_server()) # Run establish_server asynchronously 
