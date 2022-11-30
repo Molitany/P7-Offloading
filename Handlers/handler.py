@@ -4,6 +4,7 @@ import json
 from websockets import connect
 import numpy as np
 from websockets.exceptions import ConnectionClosed, InvalidMessage
+import random
 import time
 
 CRED    = '\33[31m'
@@ -17,6 +18,7 @@ idle_start_time = time.time()
 IDLE_POWER_CONSUMPTION = 1
 ACTIVE_POWER_CONSUMPTION = 5
 task_difficulty_duration = {}
+prev_task_id = -1
 
 def calc_split_matrix(matrices):
     global task_difficulty_duration
@@ -28,6 +30,7 @@ def calc_split_matrix(matrices):
     matrix2 = matrices.get('mat2')
     result = np.matmul(matrix1, matrix2)
 
+    # Dont do this but required to send as json instead of ndarray
     a: list = list()
     for i in range(len(result)):
         a.append(list(result[i]))
@@ -68,13 +71,19 @@ async def establish_client():
         except InvalidMessage:
             print(f'{CRED}Invalid Message')
             await asyncio.sleep(1)
+        except Exception:
+            print(f'{CRED} Unknown Error')
+            await asyncio.sleep(1)
+
 
 async def recieve_handler(websocket):
     global prev_task_id
     received = json.loads(await websocket.recv())
     if isinstance(received, list):
+        received[1]["task"] = json.loads(received[1]["task"] )
         await auction_action(websocket, received)
     elif isinstance(received, dict):
+        received["task"] = json.loads(received["task"] )
         print(f'{CBLUEHIGH}finished receiving winner: {received["winner"]}')
         if received.get('winner'):
             await winner_action(websocket, received)

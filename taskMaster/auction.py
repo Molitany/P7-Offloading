@@ -2,7 +2,7 @@ import json
 import websockets
 from asyncio import Lock, wait, create_task, wait_for
 import random
-from taskMaster.machineQueue import MachineQueue
+from machineQueue import MachineQueue
 
 FPSB = 1
 SPSB = 2
@@ -41,7 +41,7 @@ async def auction_call(offloading_parameters, task, machines: MachineQueue):
         for finished_task in finished:
             received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
         auction_running.release() #Release the lock as the auction part is over
-
+    
 
         #Depending on the type of auction, call different functions
         if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":

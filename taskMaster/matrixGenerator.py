@@ -1,5 +1,8 @@
+from collections import deque
 import numpy
 import random
+from Pair import Pair
+
 
 def _average(lst):
     return sum(lst) / len(lst)
@@ -11,13 +14,13 @@ def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadl
     '''
     if fixed_seed: random.seed(69)
     
-    matrix_array = []
+    matrix_array = deque()
     for i in range(0,amount):
 
         shape_numbers = random.choices(range(min_mat_shape, max_mat_shape+1), k=3)
         mat1 = numpy.random.rand(shape_numbers[0],shape_numbers[1])
         mat2 = numpy.random.rand(shape_numbers[1],shape_numbers[2])
-        deadlineSeconds = random.randint(min_deadline,max_deadline)
+        deadline_seconds = random.randint(min_deadline,max_deadline)
 
         a: list = list()
         b: list = list()
@@ -26,12 +29,6 @@ def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadl
         for i in range(len(mat2)):
             b.append(list(mat2[i]))
         
-        pair = {
-            "mat1" : a,
-            "mat2" : b,
-            "deadlineSeconds" : deadlineSeconds,
-            "max_reward" : (max_deadline - deadlineSeconds) * _average(shape_numbers),
-            "max_shape_number" : max(shape_numbers)
-        }
+        pair = Pair(a, b, deadline_seconds, (max_deadline - deadline_seconds) * _average(shape_numbers), max(shape_numbers))
         matrix_array.append(pair)
     return matrix_array
