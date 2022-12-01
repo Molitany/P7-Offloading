@@ -7,7 +7,7 @@ from asyncio import Lock, wait, create_task
 from machineQueue import MachineQueue
 
     
-task_id = 0
+task_id = 1
 auction_running = Lock()
 
 async def auction_call(task: dict, machines: MachineQueue):
@@ -21,12 +21,12 @@ async def auction_call(task: dict, machines: MachineQueue):
     #Universal part for all auctions
     offloading_parameters = task.pop('offloading_parameters')
     offloading_parameters["task"] = task
-    task_id += 1
     offloading_parameters["task_id"] = task_id
     
     await auction_running.acquire() #Use a lock to ensure only one auction is running since we cannot recv twice on the same machine 
     try:
         await machines.any_connection
+        task_id += 1
         connections = machines.copy()
         for machine in connections:
             await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
