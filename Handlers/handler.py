@@ -1,5 +1,6 @@
 import asyncio
 import json
+import traceback
 
 from websockets import connect
 import numpy as np
@@ -73,6 +74,7 @@ async def establish_client():
             await asyncio.sleep(1)
         except Exception:
             print(f'{CRED} Unknown Error')
+            traceback.print_exc()
             await asyncio.sleep(1)
 
 

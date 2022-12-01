@@ -1,4 +1,5 @@
 from collections import deque
+import traceback
 import numpy
 import random
 from Pair import Pair
@@ -7,7 +8,7 @@ from Pair import Pair
 def _average(lst):
     return sum(lst) / len(lst)
 
-def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadline=10, max_deadline=75, fixed_seed=True):
+def generate_tasks(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadline=10, max_deadline=75, fixed_seed=True, offloading_parameters={}):
     '''
     Generates matrix pairs with the given parameters.\n
     The pairs have a deadline, max_reward and max_shape_number.
@@ -16,7 +17,6 @@ def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadl
     
     matrix_array = deque()
     for i in range(0,amount):
-
         shape_numbers = random.choices(range(min_mat_shape, max_mat_shape+1), k=3)
         mat1 = numpy.random.rand(shape_numbers[0],shape_numbers[1])
         mat2 = numpy.random.rand(shape_numbers[1],shape_numbers[2])
@@ -29,6 +29,6 @@ def generate_matrices(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadl
         for i in range(len(mat2)):
             b.append(list(mat2[i]))
         
-        pair = Pair(a, b, deadline_seconds, (max_deadline - deadline_seconds) * _average(shape_numbers), max(shape_numbers))
+        pair = Pair(a, b, deadline_seconds, (max_deadline - deadline_seconds) * _average(shape_numbers), max(shape_numbers), offloading_parameters)
         matrix_array.append(pair)
     return matrix_array
