@@ -10,7 +10,7 @@ from machineQueue import MachineQueue
 from FlaskApp.frontEnd import start_frontend
 from globals import task_queue, client_inputs
 from json import JSONEncoder
-from matrixGenerator import generate_tasks
+from taskGenerator import generate_tasks
 
 def _default(self, obj):
     return getattr(obj.__class__, "to_json", _default.default)(obj)
@@ -62,8 +62,8 @@ async def task_handler():
     task = task_queue.popleft() # Get a task from the task queue
     results = await safe_send(task) # Send it to be auctioned
     # Display result
-    with open('log', 'a') as f:
-        f.write(f'[{time.asctime(time.localtime(time.time()))}] {task}\n')
+    with open('log', 'a') as f: 
+        f.write(f'[{time.asctime(time.localtime(time.time()))}] {results}\n') # add the result to the log with a timestamp
     print(f'equal: {results == np.matmul(task.get("mat1"), task.get("mat2"))}')
     print(f'Clients: {len(machines)}')
 
@@ -77,8 +77,6 @@ async def safe_send(task):
             traceback.print_exc()
 
 
-
-
 async def handle_communication(task):
     '''Start an auction if a machine is available and it is an Auction.'''    
     #Handle the contiuous check of available machines here or earlier
@@ -87,25 +85,34 @@ async def handle_communication(task):
         return await auction_call(task, machines)
 
 def handle_client_input():
+    '''Generate tasks depending on input from the frontend and add them to the queue.'''
     while True:
         if len(client_inputs) > 0:
             client_input = client_inputs.popleft()
-            task_queue.extend(generate_tasks(
-                amount=client_input.get('amount'),
-                min_mat_shape=client_input.get('min_mat_shape'),
-                max_mat_shape=client_input.get('max_mat_shape'),
-                min_deadline=client_input.get('min_deadline'),
-                max_deadline=client_input.get('max_deadline'),
-                fixed_seed=client_input.get('fixed_seed'),
-                offloading_parameters=client_input.get('offloading_parameters')
-            ))
+            amount = client_input.get('amount')
+            frequency = client_input.get('task_frequency')
+            batches = int(amount / frequency) if frequency != -1 else 1 # if frequency is no limit then only do the for loop once with the amount as max
+            for _ in range(0, batches):
+                timer = time.time()
+                task_queue.extend(generate_tasks(
+                    amount = frequency if frequency != -1 else amount,
+                    min_mat_shape = client_input.get('min_mat_shape'),
+                    max_mat_shape = client_input.get('max_mat_shape'),
+                    min_deadline = client_input.get('min_deadline'),
+                    max_deadline = client_input.get('max_deadline'),
+                    fixed_seed = client_input.get('fixed_seed'),
+                    offloading_parameters = client_input.get('offloading_parameters')
+                ))
+                time_spent = time.time() - timer
+                if time_spent < 1:
+                    time.sleep(1 - time_spent)
 
 if __name__ == "__main__":
     try:
-        with open('log', 'w') as f:
+        with open('log', 'w') as f: # reset logging
             f.write('')
-        Thread(target=start_frontend, args=()).start()
-        Thread(target=handle_client_input, args=()).start()
+        Thread(target=start_frontend, args=()).start() # start flask server 
+        Thread(target=handle_client_input, args=()).start() # handle client input in a seperate thread so frontend doesn't hang
         run(establish_server()) # Run establish_server asynchronously 
     except Exception:
             traceback.print_exc()

@@ -23,7 +23,6 @@ async def auction_call(task: dict, machines: MachineQueue):
     offloading_parameters["task"] = task
     task_id += 1
     offloading_parameters["task_id"] = task_id
-    offloading_parameters["max_reward"] = random.randrange(1, 11) #change reward calculation eventually
     
     await auction_running.acquire() #Use a lock to ensure only one auction is running since we cannot recv twice on the same machine 
     try:
@@ -44,15 +43,15 @@ async def auction_call(task: dict, machines: MachineQueue):
             received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
         auction_running.release() #Release the lock as the auction part is over
     
-
         #Depending on the type of auction, call different functions
-        if offloading_parameters.get('auction_type') == "SPSB" or offloading_parameters.get('auction_type') == "Second Price Sealed Bid":
+        if offloading_parameters.get('auction_type') == SPSB:
             result = await _sealed_bid(received_values, offloading_parameters, SPSB, machines)
             return result
-        elif offloading_parameters.get('auction_type') == "FPSB" or offloading_parameters.get('auction_type') == "First Price Sealed Bid":
+        elif offloading_parameters.get('auction_type') == FPSB:
             result = await _sealed_bid(received_values, offloading_parameters, FPSB, machines)
             return result
     except:
+        task['offloading_parameters'] = offloading_parameters
         traceback.print_exc()
         if auction_running.locked:
             auction_running.release()

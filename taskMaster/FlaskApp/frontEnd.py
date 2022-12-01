@@ -1,7 +1,13 @@
+from enum import Enum
 from flask import Flask, render_template, request
 from globals import client_inputs
 app = Flask(__name__)
 
+class Frequency(Enum):
+    Slow = 1
+    Medium = 5
+    Fast = 10
+    No_Limit = -1
 
 def get_offloading_parameters(form):
     '''Get the offloading parameters for the offloading with inputs from the front end.'''
@@ -17,13 +23,7 @@ def get_offloading_parameters(form):
         # print("""What auction type to use?
         # Second Price Sealed Bid (SPSB) (default)
         # First Price Sealed Bid (FPSB)\n""")
-        offloading_parameters["auction_type"] = form.get('auction_type') or "SPSB" #input() or "SPSB"
-
-    # print("""What frequency of tasks?
-    # Slow (1/s)
-    # Medium (5/s) (default)
-    # Fast (10/s)\n""")
-    offloading_parameters["task_frequency"] = form.get('task_frequency') or "Medium" #input() or "Medium"
+        offloading_parameters["auction_type"] = form.get('auction_type', "SPSB") #input() or "SPSB"
 
     # print("""Do the tasks have deadlines?
     # No (Default)
@@ -55,6 +55,7 @@ def add_tasks():
             'max_mat_shape': int(request.form.get('max_mat_shape')),
             'min_deadline': int(request.form.get('min_deadline')),
             'max_deadline': int(request.form.get('max_deadline')),
+            'task_frequency': Frequency[request.form.get('task_frequency', "Medium")].value,
             'fixed_seed': bool(request.form.get('fixed_seed') == 'on' if True else False),
             'offloading_parameters': get_offloading_parameters(request.form)
         })
