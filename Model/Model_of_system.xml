@@ -250,9 +250,10 @@ void resetAution(){
 		<transition>
 			<source ref="id7"/>
 			<target ref="id9"/>
-			<label kind="guard" x="17" y="-178">!systemBusy &amp;&amp; numberOfTaskInQueue &gt; 0</label>
-			<label kind="synchronisation" x="17" y="-144">newTaskForAuction!</label>
-			<label kind="assignment" x="17" y="-161">numberOfTaskInQueue--</label>
+			<label kind="guard" x="25" y="-195">!systemBusy &amp;&amp; numberOfTaskInQueue &gt; 0</label>
+			<label kind="synchronisation" x="25" y="-178">newTaskForAuction!</label>
+			<label kind="assignment" x="25" y="-161">numberOfTaskInQueue--,
+taskUpForAuction = taskList[distributorIndex]</label>
 		</transition>
 		<transition>
 			<source ref="id8"/>
