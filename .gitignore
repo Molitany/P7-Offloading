@@ -305,4 +305,4 @@ cython_debug/
 .vscode
 */.vscode/**
 
-*/log
+log
