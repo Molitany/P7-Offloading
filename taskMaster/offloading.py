@@ -11,7 +11,6 @@ from FlaskApp.frontEnd import start_frontend
 from globals import task_queue, client_inputs
 from json import JSONEncoder
 from matrixGenerator import generate_tasks
-from Pair import Pair
 
 def _default(self, obj):
     return getattr(obj.__class__, "to_json", _default.default)(obj)
@@ -65,11 +64,11 @@ async def task_handler():
     # Display result
     with open('log', 'a') as f:
         f.write(f'[{time.asctime(time.localtime(time.time()))}] {task}\n')
-    print(f'equal: {results == np.matmul(task.mat1, task.mat2)}')
+    print(f'equal: {results == np.matmul(task.get("mat1"), task.get("mat2"))}')
     print(f'Clients: {len(machines)}')
 
 
-async def safe_send(task: Pair):
+async def safe_send(task):
     '''Gets the offloading parameters and wraps the auction in a failsafe to start a new auction if the tasks fails'''
     while True:
         try:
@@ -80,11 +79,11 @@ async def safe_send(task: Pair):
 
 
 
-async def handle_communication(task: Pair):
+async def handle_communication(task):
     '''Start an auction if a machine is available and it is an Auction.'''    
     #Handle the contiuous check of available machines here or earlier
     await machines.any_connection
-    if task.offloading_parameters["offloading_type"] == "Auction":
+    if task.get('offloading_parameters').get("offloading_type") == "Auction":
         return await auction_call(task, machines)
 
 def handle_client_input():

@@ -1,8 +1,6 @@
 from collections import deque
-import traceback
 import numpy
 import random
-from Pair import Pair
 
 
 def _average(lst):
@@ -29,6 +27,13 @@ def generate_tasks(amount=100, min_mat_shape=75, max_mat_shape=125, min_deadline
         for i in range(len(mat2)):
             b.append(list(mat2[i]))
         
-        pair = Pair(a, b, deadline_seconds, (max_deadline - deadline_seconds) * _average(shape_numbers), max(shape_numbers), offloading_parameters)
+        pair = {
+            'mat1': a, 
+            'mat2': b, 
+            'deadline_seconds': deadline_seconds, 
+            'max_reward': (max_deadline - deadline_seconds) * _average(shape_numbers), 
+            'max_shape_number': max(shape_numbers), 
+            'offloading_parameters': offloading_parameters
+        }
         matrix_array.append(pair)
     return matrix_array

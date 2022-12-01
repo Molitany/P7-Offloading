@@ -1,17 +1,16 @@
 import json
 import traceback
 import websockets
-from asyncio import Lock, wait, create_task, wait_for
+from asyncio import Lock, wait, create_task
 import random
 from machineQueue import MachineQueue
-from Pair import Pair
 
 FPSB = 1
 SPSB = 2
 task_id = 0
 auction_running = Lock()
 
-async def auction_call(task: Pair, machines: MachineQueue):
+async def auction_call(task: dict, machines: MachineQueue):
     '''
     Starts an auction with the giving parameters for the task given.\n
     First sending a notice of the new auction and then waiting for the returning bids.\n
@@ -20,7 +19,7 @@ async def auction_call(task: Pair, machines: MachineQueue):
     '''
     global task_id, auction_running
     #Universal part for all auctions
-    offloading_parameters = task.offloading_parameters.pop('offloading_parameters', {})
+    offloading_parameters = task.pop('offloading_parameters')
     offloading_parameters["task"] = task
     task_id += 1
     offloading_parameters["task_id"] = task_id
