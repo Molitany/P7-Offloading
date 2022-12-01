@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<head>
+    <title>P7-Offloading</title>
+    <script src="{{url_for('static', filename='index.js')}}"></script> <!--insert for python to give the correct pathing-->
+    <link rel="stylesheet" href="{{url_for('static', filename='index.css')}}"/>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+    <div>
+        <form onsubmit="send_form(event,this)">
+            <label for="amount">Amount of tasks</label><br>
+            <input type="number" id="amount" name="amount" value="10" max="5000"><br>
+            <label for="min_mat_shape">Minimum shape</label><br>
+            <input type="number" id="min_mat_shape" name="min_mat_shape" value="10"><br>
+            <label for="max_mat_shape">Maximum shape</label><br>
+            <input type="number" id="max_mat_shape" name="max_mat_shape" value="10"><br>
+            <label for="deadlines">Deadline?</label>
+            <input type="checkbox" id="deadlines" name="deadlines"><br>
+            <label for="min_deadline">Minimum deadline</label><br>
+            <input type="number" id="min_deadline" name="min_deadline" value="10"><br>
+            <label for="max_deadline">Maximum deadline</label><br>
+            <input type="number" id="max_deadline" name="max_deadline" value="10"><br>
+            <label for="fixed_seed">Fixed seed?</label>
+            <input type="checkbox" id="fixed_seed" name="fixed_seed"><br>
+            <label for="auction_type">Auction type</label>
+            <select id="auction_type" name="auction_type">
+                <option value="SPSB">Second Price Sealed Bid</option>
+                <option value="FPSB">First Price Sealed Bid</option>
+            </select>
+            <label for="task_frequency">Frequency of tasks</label>
+            <select id="task_frequency" name="task_frequency">
+                <option value="Medium">Medium (5/s)</option>
+                <option value="Slow">Slow (1/s)</option>
+                <option value="Fast">Fast (10/s)</option>
+                <option value="No_Limit">No limit</option>
+            </select>
+            <label for="fines">Fines?</label>
+            <input type="checkbox" id="fines" name="fines"><br>
+            <label for="max_reward">Max reward?</label>
+            <input type="checkbox" id="max_reward" name="max_reward"><br>
+            <input type="submit" value="Start tasks">
+        </form>
+        <p id="error"></p>
+        <p id="result"></p>
+    </div>
+</body>
