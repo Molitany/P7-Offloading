@@ -83,7 +83,10 @@ async def handle_communication(task):
         return await auction_call(task, machines)
 
 def handle_client_input():
-    '''Generate tasks depending on input from the frontend and add them to the queue.'''
+    '''
+    Generate tasks depending on input from the frontend and add them to the queue.\n
+    Sends the requested tasks in batches to handle task frequency (1/sec, 5/sec...) and waits if the batch hasn't taken 1 second yet.
+    '''
     while True:
         if len(client_inputs) > 0:
             client_input = client_inputs.popleft()

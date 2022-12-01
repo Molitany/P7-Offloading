@@ -4,13 +4,14 @@ from globals import client_inputs
 app = Flask(__name__)
 
 class Frequency(Enum):
+    '''Enum to handle frequency'''
     Slow = 1
     Medium = 5
     Fast = 10
     No_Limit = -1
 
 def get_offloading_parameters(form):
-    '''Get the offloading parameters for the offloading with inputs from the front end.'''
+    '''Get the offloading parameters for the offloading from the front end.'''
     offloading_parameters = {}
 
     # print("""What type of offloading to use?

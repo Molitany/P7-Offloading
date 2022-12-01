@@ -40,9 +40,10 @@ async def auction_call(task: dict, machines: MachineQueue):
 
         received_values = []
         for finished_task in finished:
-            if not finished_task.exception():
+            if not finished_task.exception(): # Dont take the ones that failed
                 received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
             else:
+                # For getting the ip out of a websocket for the failed recieves
                 exceptions = [bool(f.exception()) for f in finished]
                 l = list()
                 for i in range(len(finished)):

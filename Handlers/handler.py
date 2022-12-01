@@ -38,7 +38,7 @@ def calc_split_matrix(matrices):
         a.append(list(result[i]))
 
     task_duration = (time.time() - active_start_time)
-    task_difficulty_duration['max_shape_number'] = task_duration
+    task_difficulty_duration['max_shape_number'] = task_duration # Adds the task size to memory to give a better estimate for bidding later
 
     internal_value -= task_duration
     return a
@@ -121,17 +121,19 @@ async def bid_truthfully(offloading_parameters, websocket, id):
 
     #Change the bid to be based on the dynamically estimated cost of the task
     #get previous time to complete, else estimate as 1ms per line in vector
-    estimated_cost_of_task = task_difficulty_duration.get(offloading_parameters.get('task').get("max_shape_number"), offloading_parameters.get('task').get("max_shape_number") * 0.001) * IDLE_POWER_CONSUMPTION 
+    max_shape_num = offloading_parameters.get('task').get("max_shape_number")
+    estimated_cost_of_task = task_difficulty_duration.get(max_shape_num, max_shape_num * 0.001) * IDLE_POWER_CONSUMPTION 
     if internal_value < 0:
-        bid_value = estimated_cost_of_task + abs(internal_value)
+        bid_value = estimated_cost_of_task + abs(internal_value) # add the idle time to the bid
 
     if offloading_parameters.get("deadlines") == True:
         if offloading_parameters.get('task').get("deadline_seconds") < estimated_cost_of_task:
-            bid_value += offloading_parameters["task"].get("fine", 0) 
+            # If the deadline is smaller than what is expected, add the fine to the bid to make a profit (if it exists).
+            bid_value += offloading_parameters["task"].get("fine", 0)
 
     print(f'{CGREEN}start sending {bid_value}:{id}...{CWHITE}')
     if offloading_parameters.get("max_reward") == True:
-        if bid_value < offloading_parameters.get('task').get("max_reward"):
+        if bid_value < offloading_parameters.get('task').get("max_reward"): # get the maximum reward possible if the bid exceeds it
             await websocket.send(json.dumps({"bid": bid_value, 'id': id}))
         else:
             await websocket.send(json.dumps({"bid": offloading_parameters.get('task').get("max_reward"), 'id': id}))
