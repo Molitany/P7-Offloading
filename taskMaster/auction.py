@@ -1,12 +1,12 @@
+from enum import Enum
 import json
+import time
 import traceback
 import websockets
 from asyncio import Lock, wait, create_task
-import random
 from machineQueue import MachineQueue
 
-FPSB = 1
-SPSB = 2
+    
 task_id = 0
 auction_running = Lock()
 
@@ -27,28 +27,45 @@ async def auction_call(task: dict, machines: MachineQueue):
     await auction_running.acquire() #Use a lock to ensure only one auction is running since we cannot recv twice on the same machine 
     try:
         await machines.any_connection
-        for machine in machines.copy():
+        connections = machines.copy()
+        for machine in connections:
             await machine[1].send(json.dumps((machine[0], offloading_parameters))) #Broadcast the offloading parameters, including the task, to everyone with their respective ids
 
         receive_tasks = []
-        websocketList = [w[1] for w in machines.copy()]
-        for connection in websocketList:
+        for connection in [c[1] for c in connections]:
             receive_tasks.append(create_task(connection.recv())) #Create a task to receive bids from every machine
 
-        print(f'recv 1... machines: {machines}, task: {task_id}')
+        print(f'recv 1... machines: {len(machines)}, task: {task_id}')
         finished, unfinished = await wait(receive_tasks, timeout=7) #Wait returns the finished and unfinished tasks in the list after the timeout
 
         received_values = []
         for finished_task in finished:
-            received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
+            if not finished_task.exception():
+                received_values.append(json.loads(finished_task.result())) #Place the actual bids into the list
+            else:
+                exceptions = [bool(f.exception()) for f in finished]
+                l = list()
+                for i in range(len(finished)):
+                    if not exceptions[i]:
+                        l.append(json.loads(list(finished)[i].result()).get('id'))
+                mlist = connections
+                for id, m in mlist.copy():
+                    for f in l:
+                        if id == f:
+                            mlist.remove((id, m))
+                for m in mlist:
+                    machines.remove(m)
+                with open('log', 'a') as f:
+                    f.write(f'\33[31m[{time.asctime(time.localtime(time.time()))}] error on IP: {mlist[0][1].remote_address[0]}\33[97m\n')
+
         auction_running.release() #Release the lock as the auction part is over
     
         #Depending on the type of auction, call different functions
-        if offloading_parameters.get('auction_type') == SPSB:
-            result = await _sealed_bid(received_values, offloading_parameters, SPSB, machines)
+        if offloading_parameters.get('auction_type') == 'SPSB':
+            result = await _sealed_bid(received_values, offloading_parameters, 'SPSB', machines)
             return result
-        elif offloading_parameters.get('auction_type') == FPSB:
-            result = await _sealed_bid(received_values, offloading_parameters, FPSB, machines)
+        elif offloading_parameters.get('auction_type') == 'FPSB':
+            result = await _sealed_bid(received_values, offloading_parameters, 'FPSB', machines)
             return result
     except:
         task['offloading_parameters'] = offloading_parameters
@@ -68,7 +85,7 @@ async def _sealed_bid(received_values, offloading_parameters, price_selector, ma
 
     if (len(sorted_values) > 1): #We should never run an auction with only 1 machine...
         lowest_value, second_lowest = sorted_values[0], sorted_values[1]
-        reward_value = sorted_values[1]['bid'] if price_selector == SPSB else sorted_values[0]['bid'] / 2
+        reward_value = sorted_values[1]['bid'] if price_selector == 'SPSB' else sorted_values[0]['bid'] / 2
         non_winner_sockets = [machine[1] for machine in machines.copy() if machine[0] != lowest_value.get('id')]
         winner = None
         for machine in machines.copy():
@@ -85,7 +102,7 @@ async def _sealed_bid(received_values, offloading_parameters, price_selector, ma
                 machines.put(winner)
                 return result
     else: #But if it happens then the only machine available wins
-        reward_value = sorted_values[0]['bid'] if price_selector == SPSB else sorted_values[0]['bid'] / 2
+        reward_value = sorted_values[0]['bid'] if price_selector == 'SPSB' else sorted_values[0]['bid'] / 2
         if machines[0][0] == sorted_values[0].get('id'):
             winner = machines[0]
             machines.remove(winner)

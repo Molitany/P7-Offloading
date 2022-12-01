@@ -63,9 +63,7 @@ async def task_handler():
     results = await safe_send(task) # Send it to be auctioned
     # Display result
     with open('log', 'a') as f: 
-        f.write(f'[{time.asctime(time.localtime(time.time()))}] {results}\n') # add the result to the log with a timestamp
-    print(f'equal: {results == np.matmul(task.get("mat1"), task.get("mat2"))}')
-    print(f'Clients: {len(machines)}')
+        f.write(f'[{time.asctime(time.localtime(time.time()))}] task recieved\n') # add the result to the log with a timestamp
 
 
 async def safe_send(task):
@@ -91,6 +89,8 @@ def handle_client_input():
             client_input = client_inputs.popleft()
             amount = client_input.get('amount')
             frequency = client_input.get('task_frequency')
+            with open('log', 'a') as f: 
+                f.write(f'[{time.asctime(time.localtime(time.time()))}] new input {{frequency: {frequency}/sec}}\n')
             batches = int(amount / frequency) if frequency != -1 else 1 # if frequency is no limit then only do the for loop once with the amount as max
             for _ in range(0, batches):
                 timer = time.time()
