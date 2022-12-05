@@ -36,9 +36,9 @@ def get_offloading_parameters(form):
     # Yes \n""")
     offloading_parameters["fines"] = bool(request.form.get('fines') == 'on' if True else False) #input() or "No"
 
-    print("""Is there a max reward for the tasks?
-    No (Default) 
-    Yes \n""")
+    # print("""Is there a max reward for the tasks?
+    # No (Default) 
+    # Yes \n""")
     offloading_parameters["max_reward"] = bool(request.form.get('max_reward') == 'on' if True else False) #input() or "No"
 
     #Simply add more cases to each of these or more categories
@@ -54,8 +54,8 @@ def add_tasks():
             'amount': int(request.form.get('amount')),
             'min_mat_shape': int(request.form.get('min_mat_shape')), 
             'max_mat_shape': int(request.form.get('max_mat_shape')),
-            'min_deadline': int(request.form.get('min_deadline')),
-            'max_deadline': int(request.form.get('max_deadline')),
+            'min_deadline': float(request.form.get('min_deadline')),
+            'max_deadline': float(request.form.get('max_deadline')),
             'task_frequency': Frequency[request.form.get('task_frequency', "Medium")].value,
             'fixed_seed': bool(request.form.get('fixed_seed') == 'on' if True else False),
             'offloading_parameters': get_offloading_parameters(request.form)

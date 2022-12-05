@@ -1,10 +1,13 @@
 <!DOCTYPE html>
+
 <head>
     <title>P7-Offloading</title>
-    <script src="{{url_for('static', filename='index.js')}}"></script> <!--insert for python to give the correct pathing-->
-    <link rel="stylesheet" href="{{url_for('static', filename='index.css')}}"/>
+    <script src="{{url_for('static', filename='index.js')}}"></script>
+    <!--insert for python to give the correct pathing-->
+    <link rel="stylesheet" href="{{url_for('static', filename='index.css')}}" />
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
+
 <body>
     <div>
         <form onsubmit="send_form(event,this)">
@@ -17,9 +20,9 @@
             <label for="deadlines">Deadline?</label>
             <input type="checkbox" id="deadlines" name="deadlines"><br>
             <label for="min_deadline">Minimum deadline</label><br>
-            <input type="number" id="min_deadline" name="min_deadline" value="10"><br>
+            <input type="number" id="min_deadline" name="min_deadline" value="10" step="0.01"><br>
             <label for="max_deadline">Maximum deadline</label><br>
-            <input type="number" id="max_deadline" name="max_deadline" value="10"><br>
+            <input type="number" id="max_deadline" name="max_deadline" value="10" step="0.01"><br>
             <label for="fixed_seed">Fixed seed?</label>
             <input type="checkbox" id="fixed_seed" name="fixed_seed"><br>
             <label for="auction_type">Auction type</label>
@@ -28,9 +31,9 @@
                 <option value="FPSB">First Price Sealed Bid</option>
             </select>
             <label for="task_frequency">Frequency of tasks</label>
-            <select id="task_frequency" name="task_frequency">
-                <option value="Medium">Medium (5/s)</option>
+            <select id="task_frequency" name="task_frequency" >
                 <option value="Slow">Slow (1/s)</option>
+                <option value="Medium" selected>Medium (5/s)</option>
                 <option value="Fast">Fast (10/s)</option>
                 <option value="No_Limit">No limit</option>
             </select>
