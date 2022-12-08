@@ -41,11 +41,13 @@ async def new_connection(websocket):
     """
     global machines
     machines.put(websocket)
+    task = create_task(websocket_receiver(websocket))
     logger.log_message(f'New device connected, new amount: {len(machines)}')
     try:
         await websocket.wait_closed()
     finally:
         machines.remove_socket(websocket)
+        task.cancel()
         logger.log_message(f'Device disconnected, new amount: {len(machines)}')
 
 
@@ -62,12 +64,8 @@ async def establish_server():
 async def handle_server():
     """Has the server "run in the background" for task offloading to the machines connected."""
     await sleep(0.1)
-    recievers_up = False
     while True:
         await sleep(0.01)
-        if not machines.empty() and not recievers_up:
-            create_task(aggregate_recievers())
-            recievers_up = True
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
         if len(task_queue) != 0 and not machines.empty():
             tasks = [create_task(task_handler()) for _ in task_queue]
@@ -161,7 +159,8 @@ def log_task():
 
 async def websocket_receiver(websocket):
     global auctions, completed_tasks
-    async for message in websocket:
+    while True:
+        message = await websocket.recv()
         received = json.loads(message)
         if isinstance(received, dict):
             if received.get('bid'):  # Bid
@@ -180,13 +179,6 @@ async def websocket_receiver(websocket):
                     auction,
                     auction.get('offloading_parameters'))
                 completed_tasks += 1
-
-
-async def aggregate_recievers():
-    while True:
-        if len(machines) > 0: # possible not handling addition of machines
-            await asyncio.gather(*[websocket_receiver(machine[1]) for machine in machines])
-
 
 async def receive_exception_handler(results):
     # For getting the ip out of a websocket for the failed recieves
