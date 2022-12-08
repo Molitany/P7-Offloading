@@ -8,7 +8,7 @@ class MachineQueue():
 
     def __init__(self) -> None:
         self.connected: deque[tuple[int, WebSocketServerProtocol]] = deque()
-        self.any_connection = asyncio.Future()
+        self.any_connection = None
         self.id = 0
 
     def remove(self, element) -> None:

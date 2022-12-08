@@ -94,18 +94,18 @@ async def auction_action(websocket, recieved):
             await bid_truthfully(offloading_parameters, websocket, id)
 
 
-async def winner_action(websocket, auction_result):
+async def winner_action(websocket, auction_result: dict):
     global internal_value, idle_start_time, prev_task_id
     # Interrupt here for continuous check for new auctions and cancelling current auction
-    result = calc_split_matrix(auction_result["task"])
+    result = calc_split_matrix(auction_result.get("task"))
     # The above maybe needs to be done in a separate process, so we can compute while still judging auctions
     # This does require far better estimation of whether auctions are worth joining
     logger.log_colored_message(logger.colors.GREEN, 'sending result...')
-    await websocket.send(json.dumps(result))
+    await websocket.send(json.dumps({'result': result, 'task_id': auction_result.get('task_id')}))
     logger.log_colored_message(logger.colors.GREENHIGH, 'finished sending result')
-    internal_value += auction_result["reward"]
+    internal_value += auction_result.get("reward")
     idle_start_time = time.time()
-    prev_task_id = auction_result['task_id']
+    prev_task_id = auction_result.get('task_id')
 
 
 async def bid_truthfully(offloading_parameters, websocket, id):
@@ -130,15 +130,18 @@ async def bid_truthfully(offloading_parameters, websocket, id):
             # If the deadline is smaller than what is expected, add the fine to the bid to make a profit (if it exists).
             bid_value += offloading_parameters.get("fine", 0)
 
-    logger.log_colored_message(logger.colors.GREEN, f'start sending {bid_value}:{id}...')
+    to_send = {}
     if offloading_parameters.get("max_reward") == True:
         # get the maximum reward possible if the bid exceeds it
         if bid_value < offloading_parameters.get("max_reward"):
-            await websocket.send(json.dumps({"bid": bid_value, 'id': id}))
+            to_send = {"bid": bid_value, 'id': id}
         else:
-            await websocket.send(json.dumps({"bid": offloading_parameters.get("max_reward"), 'id': id}))
+            to_send = {"bid": offloading_parameters.get("max_reward"), 'id': id}
     else:
-        await websocket.send(json.dumps({"bid": bid_value, 'id': id}))
+            to_send = {"bid": bid_value, 'id': id}
+    to_send['task_id'] = offloading_parameters.get('task_id')
+    logger.log_colored_message(logger.colors.GREEN, f'start sending {bid_value}:{id}...')
+    await websocket.send(json.dumps(to_send))
     logger.log_colored_message(logger.colors.GREENHIGH, 'finished sending')
 
 
