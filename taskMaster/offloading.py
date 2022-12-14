@@ -2,6 +2,7 @@ import asyncio
 import json
 import shutil
 import logging
+import sys
 import time
 import traceback
 from asyncio import Future, create_task, run, sleep, wait
@@ -65,15 +66,19 @@ async def handle_server():
     """Has the server "run in the background" for task offloading to the machines connected."""
     await sleep(0.1)
     while True:
-        await sleep(0.01)
+        await sleep(0)
         # If there is a task and a machine then start a new task by splitting a matrix into vector pairs
         if len(task_queue) != 0 and not machines.empty():
             tasks = [create_task(task_handler()) for _ in task_queue]
             await wait(tasks)
         if len(task_queue) == 0 and completed_tasks > 0 and completed_tasks == to_be_completed:
             log_task()
-
-
+        # if auctions and completed_tasks > 0:
+        #     for auction in auctions:
+        #         timer = auction.get("start_delay_timer") - time.time()
+        #         if timer >= auction.get("offloading_parameters").get("deadline_seconds") and len(auction.get("bid_results")) != len(auction.get("machines")):
+        #             await handle_bid(auction)
+ 
 async def task_handler():
     '''Gets a task from the queue and start an auction for it when available.'''
     task = task_queue.popleft()  # Get a task from the task queue
@@ -117,7 +122,7 @@ def handle_client_input():
             for _ in range(0, batches):
                 timer = time.time()
                 task_queue.extend(generate_tasks(
-                    amount=frequency if frequency == -1 or frequency < amount else amount,
+                    amount=frequency if frequency != -1 and frequency < amount else amount,
                     min_mat_shape=client_input.get('min_mat_shape'),
                     max_mat_shape=client_input.get('max_mat_shape'),
                     min_deadline=client_input.get('min_deadline'),
@@ -132,79 +137,80 @@ def handle_client_input():
 
 
 def log_task():
-    global completed_tasks, start_machine_timer, start_fog_timer, start_client_timer, late_tasks
+    global completed_tasks, start_machine_timer, start_fog_timer, start_client_timer, late_tasks, to_be_completed
+    task_delays = [delay[1] for delay in late_tasks]
+    first_auction = min(auctions.keys())
     logger.log_colored_message(
         logger.colors.GREEN, f'Number of tasks: {completed_tasks}')
+    logger.log_colored_message(
+        logger.colors.GREEN, f'Size of tasks: {auctions[first_auction].get("offloading_parameters").get("shape_numbers")}')
     logger.log_colored_message(logger.colors.GREEN,
                                f'Fog Throughput: {completed_tasks / (time.time() - start_fog_timer)}')
     logger.log_colored_message(logger.colors.GREEN,
                                f'Client Throughput: {completed_tasks / (time.time() - start_client_timer)}')
     logger.log_colored_message(logger.colors.GREEN,
                                f'Machine Throughput: {completed_tasks / (sum([result.get("time") for result in results])/len(results))}')
-    logger.log_colored_message(logger.colors.GREEN,
-                               f'late tasks: {len(late_tasks)/completed_tasks*100}%')
-    logger.log_colored_message(logger.colors.GREEN,
-                               f'Average of task delays: {sum([delay[1] for delay in late_tasks])/completed_tasks}')
-    logger.log_colored_message(logger.colors.GREEN,
-                               f'Maximum of task delays: {max([delay[1] for delay in late_tasks])}')
-    logger.log_colored_message(
-        logger.colors.GREEN, f'Clients connected: {connected_machines}')
+    if auctions[first_auction].get("offloading_parameters").get("deadlines"):
+        logger.log_colored_message(logger.colors.GREEN,
+                                f'late tasks: {len(late_tasks)/completed_tasks*100}%')
+        logger.log_colored_message(logger.colors.GREEN,
+                                f'Average of task delays: {sum(task_delays)/completed_tasks}')
+        if task_delays: # If there is no delays then max complains
+            logger.log_colored_message(logger.colors.GREEN,
+                                    f'Maximum of task delays: {max(task_delays)}')
+    else:
+        logger.log_colored_message(logger.colors.GREEN,
+                                f'Maximum of task delays: {0}')
+    machines_connected = set([len(auctions[auction].get('machines')) for auction in auctions])
+    for amount in machines_connected:
+        logger.log_colored_message(
+            logger.colors.GREEN, f'Machines connected: {amount}')
     shutil.copyfile(
         'log.txt', f'logs/finished_log {datetime.today().isoformat(sep=" ", timespec="seconds")}.txt')
+    
     completed_tasks = 0
-    late_tasks = []
+    to_be_completed = 0
+    late_tasks.clear()
+    auctions.clear()
     start_fog_timer = time.time()
     logger.truncate()
 
 
 async def websocket_receiver(websocket):
     global auctions, completed_tasks
-    while True:
-        message = await websocket.recv()
-        received = json.loads(message)
-        if isinstance(received, dict):
-            if received.get('bid'):  # Bid
+    try:
+        while True:
+            message = await websocket.recv()
+            received = json.loads(message)
+            if isinstance(received, dict):
                 auction = auctions.get(received.get('task_id'))
-                if auction.get('bid_results'):
-                    auction.get('bid_results').append(received)
-                else:
-                    auction['bid_results'] = [received]
+                if received.get('bid'):  # Bid
+                    if auction.get('bid_results'):
+                        auction['bid_results'].append(received)
+                    else:
+                        auction['bid_results'] = [received]
 
-                if len(auction.get('machines')) == len(auction.get('bid_results')):
-                    await handle_bid(auction)
-            elif received.get('result'):  # Matrix result
-                auction = auctions.get(received.get('task_id'))
-                await auction_result(
-                    received,
-                    auction,
-                    auction.get('offloading_parameters'))
-                completed_tasks += 1
-
-async def receive_exception_handler(results):
-    # For getting the ip out of a websocket for the failed recieves
-    exceptions = [bool(f.exception()) for f in results]
-    l = list()
-    for i in range(len(results)):
-        if not exceptions[i]:
-            l.append(json.loads(list(results)
-                                [i].result()).get('id'))
-    mlist = machines.copy()
-    for id, m in mlist.copy():
-        for f in l:
-            if id == f:
-                mlist.remove((id, m))
-    for m in mlist:
-        logger.log_error(
-            f'error on IP: {m[1].remote_address[0]}')
-
+                    if len(auction.get('machines')) == len(auction.get('bid_results')):
+                        await handle_bid(auction)
+                elif received.get('result'):  # Matrix result
+                    await auction_result(
+                        received,
+                        auction,
+                        auction.get('offloading_parameters'))
+                    completed_tasks += 1
+    except:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        logger.log_error(f'error on receive: {{\n\ttype: {exc_type},\n\tvalue: {exc_value},\n\ttraceback:{traceback.extract_tb(exc_traceback)}}}')
+            
 
 if __name__ == "__main__":
-    try:
-        logger.truncate()
-        Thread(target=start_frontend, args=()).start()  # start flask server
-        # handle client input in a seperate thread so frontend doesn't hang
-        Thread(target=handle_client_input, args=()).start()
-        uvloop.install()
-        asyncio.run(establish_server())  # Run establish_server asynchronously
-    except Exception as e:
-        logger.log_error(f'General Error: {e}')
+    logger.truncate()
+    Thread(target=start_frontend, args=()).start()  # start flask server
+    # handle client input in a seperate thread so frontend doesn't hang
+    Thread(target=handle_client_input, args=()).start()
+    uvloop.install()
+    while True:
+        try:
+            asyncio.run(establish_server())  # Run establish_server asynchronously
+        except Exception as e:
+            logger.log_error(f'General Error: {{type: {type(e)}, error: {e}}}')

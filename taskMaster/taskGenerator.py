@@ -34,6 +34,7 @@ def generate_tasks(amount=5, min_mat_shape=75, max_mat_shape=125, min_deadline=1
         offloading_parameters['deadline_seconds'] = deadline_seconds
         offloading_parameters['max_reward'] = deadline_difference * _average(shape_numbers)
         offloading_parameters['fines'] = offloading_parameters.get('max_reward') * 2 if offloading_parameters.get('fines') else 0
+        offloading_parameters['shape_numbers'] = shape_numbers
 
         pair = {
             'mat1': a,

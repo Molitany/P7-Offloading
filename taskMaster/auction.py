@@ -4,7 +4,7 @@ import websockets
 from asyncio import Lock
 from machineQueue import MachineQueue
 from logger import Logger
-from globals import late_tasks, auctions, results, machines
+from globals import late_tasks, auctions, results
 
 
 logger = Logger()
@@ -33,20 +33,22 @@ async def auction_call(task: dict, machines: MachineQueue):
         machines_list = machines
         start_delay_timer = time.time()
         start_machine_timer = time.time()
-        task_id += 1
-        offloading_parameters["task_id"] = task_id
 
-        connections = machines.connected
-        for machine in connections.copy():
-            # Broadcast the offloading parameters, including the task, to everyone with their respective ids
-            await machine[1].send(json.dumps((machine[0], offloading_parameters)))
-        auctions[task_id] = {
-            'machines': connections, 
-            'offloading_parameters': offloading_parameters.copy(),
-            'task': task, 
-            'bid_results': [], 
-            'start_delay_timer': start_delay_timer, 
-            'start_machine_timer': start_machine_timer}
+        async with lock:
+            task_id += 1
+            offloading_parameters["task_id"] = task_id
+            connections = machines.connected.copy()
+            auctions[task_id] = {
+                'machines': connections, 
+                'offloading_parameters': offloading_parameters.copy(),
+                'task': task, 
+                'bid_results': [], 
+                'start_delay_timer': start_delay_timer, 
+                'start_machine_timer': start_machine_timer
+                }
+            for machine in connections:
+                # Broadcast the offloading parameters, including the task, to everyone with their respective ids
+                await machine[1].send(json.dumps((machine[0], offloading_parameters)))
     except:
         task['offloading_parameters'] = offloading_parameters
 
@@ -89,6 +91,7 @@ async def _sealed_bid(received_values, task, task_id, price_selector, machines, 
                 if len(non_winner_sockets) > 0:
                     websockets.broadcast(non_winner_sockets, json.dumps(
                         {"winner": False, 'task_id': task_id}))
+                    break
     else:  # But if it happens then the only machine available wins
         reward_value = sorted_values[0]['bid'] if price_selector == 'SPSB' else sorted_values[0]['bid'] / 2
         if machines[0][0] == sorted_values[0].get('id'):
@@ -105,5 +108,5 @@ async def auction_result(result, auction, offloading_parameters):
     time_taken = time.time() - auction.get('start_delay_timer')
     if offloading_parameters.get('deadline_seconds') <= time_taken:
         late_tasks.append(
-            (task_id, time_taken - offloading_parameters.get('deadline_seconds')))
+            (offloading_parameters.get('task_id'), time_taken - offloading_parameters.get('deadline_seconds')))
     results.append({'time': time.time() - auction.get('start_machine_timer'), 'result': result})

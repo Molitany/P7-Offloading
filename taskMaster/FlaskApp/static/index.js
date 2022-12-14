@@ -18,6 +18,7 @@ async function send_form(e, form) {
         error.innerText = ''
     }
     result.innerText = await data.text()
+    setTimeout(()=>{result.innerText = ''}, 1000)
 }
 
 function error_check(min, max) {

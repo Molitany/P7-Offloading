@@ -24,9 +24,10 @@ def calc_split_matrix(matrices):
     timer = time.time()
 
     """Dot products the pair into the respective cell."""
-    matrix1 = matrices.get('mat1')
+    result = matrices.get('mat1')
     matrix2 = matrices.get('mat2')
-    result = np.matmul(matrix1, matrix2)
+    for x in range(0, 100):
+        result = np.matmul(result, matrix2)
 
     # Dont do this but required to send as json instead of ndarray
     a: list = list()
@@ -80,7 +81,8 @@ async def recieve_handler(websocket):
     if isinstance(received, list):
         await auction_action(websocket, received)
     elif isinstance(received, dict):
-        logger.log_colored_message(logger.colors.BLUEHIGH, f'finished receiving winner: {received["winner"]}')
+        logger.log_colored_message(
+            logger.colors.BLUEHIGH, f'finished receiving winner: {received["winner"]}')
         if received.get('winner'):
             await winner_action(websocket, received)
         prev_task_id = received.get('task_id')
@@ -88,7 +90,8 @@ async def recieve_handler(websocket):
 
 async def auction_action(websocket, recieved):
     id, offloading_parameters = recieved
-    logger.log_colored_message(logger.colors.BLUEHIGH, f'finished receiving auction {{id:{id} task:{offloading_parameters.get("task_id")}}}')
+    logger.log_colored_message(
+        logger.colors.BLUEHIGH, f'finished receiving auction {{id:{id} task:{offloading_parameters.get("task_id")}}}')
     if offloading_parameters["offloading_type"] == "Auction":
         if offloading_parameters["auction_type"] == "Second Price Sealed Bid" or offloading_parameters["auction_type"] == "SPSB" or offloading_parameters["auction_type"] == "FPSB" or offloading_parameters["auction_type"] == "First Price Sealed Bid":
             await bid_truthfully(offloading_parameters, websocket, id)
@@ -102,7 +105,8 @@ async def winner_action(websocket, auction_result: dict):
     # This does require far better estimation of whether auctions are worth joining
     logger.log_colored_message(logger.colors.GREEN, 'sending result...')
     await websocket.send(json.dumps({'result': result, 'task_id': auction_result.get('task_id')}))
-    logger.log_colored_message(logger.colors.GREENHIGH, 'finished sending result')
+    logger.log_colored_message(
+        logger.colors.GREENHIGH, 'finished sending result')
     internal_value += auction_result.get("reward")
     idle_start_time = time.time()
     prev_task_id = auction_result.get('task_id')
@@ -136,11 +140,13 @@ async def bid_truthfully(offloading_parameters, websocket, id):
         if bid_value < offloading_parameters.get("max_reward"):
             to_send = {"bid": bid_value, 'id': id}
         else:
-            to_send = {"bid": offloading_parameters.get("max_reward"), 'id': id}
+            to_send = {"bid": offloading_parameters.get(
+                "max_reward"), 'id': id}
     else:
-            to_send = {"bid": bid_value, 'id': id}
+        to_send = {"bid": bid_value, 'id': id}
     to_send['task_id'] = offloading_parameters.get('task_id')
-    logger.log_colored_message(logger.colors.GREEN, f'start sending {bid_value}:{id}...')
+    logger.log_colored_message(
+        logger.colors.GREEN, f'start sending {bid_value}:{id}...')
     await websocket.send(json.dumps(to_send))
     logger.log_colored_message(logger.colors.GREENHIGH, 'finished sending')
 
