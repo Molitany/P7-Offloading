@@ -1,6 +1,6 @@
 let errorBool = false
 
-async function send_form(e, form){
+async function send_form(e, form) {
     e.preventDefault()
     errorBool = false
     let error = document.getElementById('error')
@@ -18,11 +18,12 @@ async function send_form(e, form){
         error.innerText = ''
     }
     result.innerText = await data.text()
+    setTimeout(()=>{result.innerText = ''}, 1000)
 }
 
 function error_check(min, max) {
     // write in the error element and flip min and max
-    if (parseInt(formData.get(min)) > parseInt(formData.get(max))){
+    if (parseInt(formData.get(min)) > parseInt(formData.get(max))) {
         str = `${min} > ${max}. We flip the input.`.replaceAll('_', 'imum ')
         error.innerText = str.charAt(0).toUpperCase() + str.slice(1)
         a = formData.get(max)

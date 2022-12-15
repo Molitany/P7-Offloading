@@ -2,20 +2,24 @@ import asyncio
 from websockets.legacy.server import WebSocketServerProtocol
 from collections import deque
 
+
 class MachineQueue():
     '''A class to handle the state space of the queue.'''
+
     def __init__(self) -> None:
-        self.connected: deque[tuple[int,WebSocketServerProtocol]] = deque()
-        self.any_connection = asyncio.Future()
+        self.connected: deque[tuple[int, WebSocketServerProtocol]] = deque()
+        self.any_connection = None
+        self.receivers = []
         self.id = 0
-    
+
     def remove(self, element) -> None:
         '''Removes an element from the queue and if it is now empty set any_connection to a new future for locking.'''
-        self.connected.remove(element)
-        if self.any_connection.done() and not self.connected:
-            self.any_connection = asyncio.Future()
-    
-    def remove_socket(self,websocket) -> None:
+        if element in self.connected:
+            self.connected.remove(element)
+            if self.any_connection.done() and not self.connected:
+                self.any_connection = asyncio.Future()
+
+    def remove_socket(self, websocket) -> None:
         '''Removes an element from the queue based on a websocket'''
         for machine in self.connected.copy():
             if machine[1] == websocket:
@@ -37,7 +41,7 @@ class MachineQueue():
         '''Returns if a bool for if the queue is empty.'''
         return not self.connected
 
-    def copy(self) -> deque[tuple[int,WebSocketServerProtocol]]:
+    def copy(self) -> deque[tuple[int, WebSocketServerProtocol]]:
         '''Returns a copy of the queue.'''
         return self.connected.copy()
 
