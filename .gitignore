@@ -308,3 +308,5 @@ cython_debug/
 log.txt
 logs
 **/logs/*
+logs (small tasks)
+**/logs (small tasks)/*

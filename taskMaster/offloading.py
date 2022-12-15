@@ -5,13 +5,14 @@ import logging
 import sys
 import time
 import traceback
-from asyncio import Future, create_task, run, sleep, wait
+from asyncio import CancelledError, Future, create_task, run, sleep, wait
 from datetime import datetime
 from threading import Thread
 
 import uvloop
 import websockets.client
 import websockets.server
+from websockets.exceptions import ConnectionClosed
 from auction import auction_call, auction_result, handle_bid
 from FlaskApp.frontEnd import start_frontend
 from globals import auctions, client_inputs, late_tasks, machines, task_queue, results
@@ -57,7 +58,7 @@ async def establish_server():
     """Start a websocket server on ws://192.168.1.10:5001, upon a new connection call new_connection while the server runs handle_server."""
     host = '192.168.1.10'
     port = 5001
-    async with websockets.serve(new_connection, host, port, max_size=None) as websocket:
+    async with websockets.serve(new_connection, host, port, max_size=None, ping_timeout=40) as websocket:
         machines.any_connection = Future()
         await handle_server()
 
@@ -73,11 +74,6 @@ async def handle_server():
             await wait(tasks)
         if len(task_queue) == 0 and completed_tasks > 0 and completed_tasks == to_be_completed:
             log_task()
-        # if auctions and completed_tasks > 0:
-        #     for auction in auctions:
-        #         timer = auction.get("start_delay_timer") - time.time()
-        #         if timer >= auction.get("offloading_parameters").get("deadline_seconds") and len(auction.get("bid_results")) != len(auction.get("machines")):
-        #             await handle_bid(auction)
  
 async def task_handler():
     '''Gets a task from the queue and start an auction for it when available.'''
@@ -178,29 +174,43 @@ def log_task():
 
 async def websocket_receiver(websocket):
     global auctions, completed_tasks
-    try:
-        while True:
-            message = await websocket.recv()
+    while True:
+        try:
+            message = await asyncio.wait_for(websocket.recv(), timeout=15)
             received = json.loads(message)
             if isinstance(received, dict):
                 auction = auctions.get(received.get('task_id'))
-                if received.get('bid'):  # Bid
-                    if auction.get('bid_results'):
-                        auction['bid_results'].append(received)
-                    else:
-                        auction['bid_results'] = [received]
+                if auction:
+                    if received.get('bid'):  # Bid
+                        if auction.get('bid_results'):
+                            auction['bid_results'].append(received)
+                        else:
+                            auction['bid_results'] = [received]
 
-                    if len(auction.get('machines')) == len(auction.get('bid_results')):
-                        await handle_bid(auction)
-                elif received.get('result'):  # Matrix result
-                    await auction_result(
-                        received,
-                        auction,
-                        auction.get('offloading_parameters'))
-                    completed_tasks += 1
-    except:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        logger.log_error(f'error on receive: {{\n\ttype: {exc_type},\n\tvalue: {exc_value},\n\ttraceback:{traceback.extract_tb(exc_traceback)}}}')
+                        if len(auction.get('machines')) == len(auction.get('bid_results')):
+                            await handle_bid(auction)
+                    elif received.get('result'):  # Matrix result
+                        await auction_result(
+                            received,
+                            auction,
+                            auction.get('offloading_parameters'))
+                        completed_tasks += 1
+        except CancelledError:
+            break
+        except ConnectionClosed:
+            break
+        except asyncio.exceptions.TimeoutError:
+            for auction in auctions.values():
+                if len(auction.get("bid_results")) != len(auction.get("machines")):
+                    task = auction.get("task")
+                    task["offloading_parameters"] = auction.get("offloading_parameters")
+                    if not task in task_queue:
+                        task_queue.appendleft(task)
+                        del auctions[auction.get("offloading_parameters").get("task_id")]
+        except:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            logger.log_error(f'error on receive: {{\n\ttype: {exc_type},\n\tvalue: {exc_value},\n\ttraceback:{traceback.extract_tb(exc_traceback)}}}')
+            break
             
 
 if __name__ == "__main__":

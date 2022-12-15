@@ -104,9 +104,10 @@ async def _sealed_bid(received_values, task, task_id, price_selector, machines, 
 
 
 async def auction_result(result, auction, offloading_parameters):
-    global results
+    global results, auctions
     time_taken = time.time() - auction.get('start_delay_timer')
     if offloading_parameters.get('deadline_seconds') <= time_taken:
         late_tasks.append(
             (offloading_parameters.get('task_id'), time_taken - offloading_parameters.get('deadline_seconds')))
     results.append({'time': time.time() - auction.get('start_machine_timer'), 'result': result})
+    auctions.pop(offloading_parameters.get('task_id'))
