@@ -1,5 +1,4 @@
 from collections import deque
-
 from machineQueue import MachineQueue
 
 # the task queue is a list of pairs where both elements are matrices
